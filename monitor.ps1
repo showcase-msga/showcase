@@ -12,14 +12,30 @@ $tempPath   = "$env:TEMP\nuc_shot.jpg"
 # Timestamp for filename
 $timestamp = Get-Date -Format "yyyy-MM-dd HH-mm"
 
-# Take screenshot
+# Take screenshot - DPI aware, captures full screen regardless of scaling
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class DpiHelper {
+    [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+    [DllImport("gdi32.dll")] public static extern int GetDeviceCaps(IntPtr hdc, int nIndex);
+    [DllImport("user32.dll")] public static extern IntPtr GetDC(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern int ReleaseDC(IntPtr hwnd, IntPtr hdc);
+}
+"@
 
-$screen   = [System.Windows.Forms.Screen]::PrimaryScreen
-$bitmap   = New-Object System.Drawing.Bitmap($screen.Bounds.Width, $screen.Bounds.Height)
+[DpiHelper]::SetProcessDPIAware() | Out-Null
+
+$hdc        = [DpiHelper]::GetDC([IntPtr]::Zero)
+$width      = [DpiHelper]::GetDeviceCaps($hdc, 118)  # DESKTOPHORZRES
+$height     = [DpiHelper]::GetDeviceCaps($hdc, 117)  # DESKTOPVERTRES
+[DpiHelper]::ReleaseDC([IntPtr]::Zero, $hdc) | Out-Null
+
+$bitmap   = New-Object System.Drawing.Bitmap($width, $height)
 $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-$graphics.CopyFromScreen($screen.Bounds.Location, [System.Drawing.Point]::Empty, $screen.Bounds.Size)
+$graphics.CopyFromScreen(0, 0, 0, 0, (New-Object System.Drawing.Size($width, $height)))
 
 # Save as JPEG 70% quality
 $jpegEncoder   = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
