@@ -26,6 +26,10 @@ $monitorScript = $monitorScript -replace 'NUCID_PLACEHOLDER', $nucId
 $vbsContent = (Invoke-WebRequest "$baseUrl/run-silent.vbs" -UseBasicParsing).Content
 [System.IO.File]::WriteAllText("$monitorDir\run-silent.vbs", $vbsContent)
 
+# ---- Step 4b: Download test-screenshot.bat ----
+$batContent = (Invoke-WebRequest "$baseUrl/test-screenshot.bat" -UseBasicParsing).Content
+[System.IO.File]::WriteAllText("$monitorDir\test-screenshot.bat", $batContent)
+
 # ---- Step 5: Write nuc-id.txt ----
 [System.IO.File]::WriteAllText("$monitorDir\nuc-id.txt", $nucId)
 
