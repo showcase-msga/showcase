@@ -37,11 +37,26 @@ $bitmap   = New-Object System.Drawing.Bitmap($width, $height)
 $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
 $graphics.CopyFromScreen(0, 0, 0, 0, (New-Object System.Drawing.Size($width, $height)))
 
-# Save as JPEG 70% quality
+# Resize to max 1080px tall to reduce file size while preserving wide aspect ratios
+$maxHeight = 1080
+if ($height -gt $maxHeight) {
+  $ratio    = $maxHeight / $height
+  $newW     = [int]($width * $ratio)
+  $newH     = $maxHeight
+  $resized  = New-Object System.Drawing.Bitmap($newW, $newH)
+  $g        = [System.Drawing.Graphics]::FromImage($resized)
+  $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+  $g.DrawImage($bitmap, 0, 0, $newW, $newH)
+  $g.Dispose()
+  $bitmap.Dispose()
+  $bitmap = $resized
+}
+
+# Save as JPEG 50% quality
 $jpegEncoder   = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
 $encoderParams = New-Object System.Drawing.Imaging.EncoderParameters(1)
 $encoderParams.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter(
-    [System.Drawing.Imaging.Encoder]::Quality, 70L
+    [System.Drawing.Imaging.Encoder]::Quality, 50L
 )
 $bitmap.Save($tempPath, $jpegEncoder, $encoderParams)
 $graphics.Dispose()
