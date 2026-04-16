@@ -637,7 +637,7 @@ function getLastExpectedTime() {
   let runMin  = 30;
   let lastRunTime = null;
 
-  while (runHour < 17 || (runHour === 17 && runMin === 0)) {
+  while (runHour < 17) {
     const candidate = new Date(now);
     candidate.setHours(runHour, runMin, 0, 0);
     if (candidate <= now) {
@@ -645,7 +645,9 @@ function getLastExpectedTime() {
     } else {
       break;
     }
-    runHour += 1;
+    // Increment by 30 minutes
+    runMin += 30;
+    if (runMin >= 60) { runMin -= 60; runHour += 1; }
   }
 
   return lastRunTime;
