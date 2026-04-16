@@ -30,6 +30,10 @@ $vbsContent = (Invoke-WebRequest "$baseUrl/run-silent.vbs" -UseBasicParsing).Con
 $batContent = (Invoke-WebRequest "$baseUrl/test-screenshot.bat" -UseBasicParsing).Content
 [System.IO.File]::WriteAllText("$monitorDir\test-screenshot.bat", $batContent)
 
+# ---- Step 4c: Download reset.bat ----
+$resetContent = (Invoke-WebRequest "$baseUrl/reset.bat" -UseBasicParsing).Content
+[System.IO.File]::WriteAllText("$monitorDir\reset.bat", $resetContent)
+
 # ---- Step 5: Write nuc-id.txt ----
 [System.IO.File]::WriteAllText("$monitorDir\nuc-id.txt", $nucId)
 
