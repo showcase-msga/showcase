@@ -61,7 +61,7 @@ $xml = @"
         <DaysInterval>1</DaysInterval>
       </ScheduleByDay>
       <Repetition>
-        <Interval>PT1H</Interval>
+        <Interval>PT30M</Interval>
         <Duration>PT8H30M</Duration>
         <StopAtDurationEnd>false</StopAtDurationEnd>
       </Repetition>
