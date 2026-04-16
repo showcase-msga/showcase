@@ -3,24 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Showcase NUC Dashboard</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<title>Showcase NUC Dashboard — AD Group</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0a0a0f;
-    --surface: #111118;
-    --surface2: #1a1a24;
-    --border: #2a2a38;
-    --accent: #4f7fff;
-    --accent2: #7c3aed;
-    --green: #22c55e;
-    --red: #ef4444;
-    --amber: #f59e0b;
-    --text: #e8e8f0;
-    --text2: #888899;
-    --text3: #555566;
-    --mono: 'DM Mono', monospace;
-    --sans: 'DM Sans', sans-serif;
+    --bg: #0c0c0c;
+    --surface: #141414;
+    --surface2: #1c1c1c;
+    --border: #2a2a2a;
+    --border-light: #333;
+    --online: #4ade80;
+    --offline: #f87171;
+    --text: #f0f0f0;
+    --text2: #888;
+    --text3: #444;
+    --accent: #c9a96e;
+    --accent-dim: rgba(201,169,110,0.12);
+    --nsw: #c9a96e;
+    --vic: #8b7355;
+    --qld: #a0845c;
+    --serif: 'Playfair Display', Georgia, serif;
+    --sans: 'Inter', -apple-system, sans-serif;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -30,7 +33,6 @@
     color: var(--text);
     font-family: var(--sans);
     min-height: 100vh;
-    overflow-x: hidden;
   }
 
   /* HEADER */
@@ -38,217 +40,263 @@
     position: sticky;
     top: 0;
     z-index: 100;
-    background: rgba(10,10,15,0.95);
-    backdrop-filter: blur(12px);
+    background: rgba(12,12,12,0.97);
+    backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--border);
-    padding: 0 24px;
   }
 
-  .header-inner {
+  .header-top {
     max-width: 1600px;
     margin: 0 auto;
+    padding: 0 32px;
     display: flex;
     align-items: center;
-    gap: 20px;
-    height: 60px;
+    justify-content: space-between;
+    height: 64px;
+    border-bottom: 1px solid var(--border);
   }
 
-  .logo {
+  .logo-area {
     display: flex;
     align-items: center;
-    gap: 10px;
-    flex-shrink: 0;
+    gap: 16px;
   }
 
-  .logo-dot {
-    width: 8px;
-    height: 8px;
-    background: var(--accent);
-    border-radius: 50%;
-    box-shadow: 0 0 8px var(--accent);
-    animation: pulse 2s ease-in-out infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.6; transform: scale(0.8); }
-  }
-
-  .logo-text {
-    font-family: var(--mono);
-    font-size: 13px;
+  .logo-wordmark {
+    font-family: var(--serif);
+    font-size: 18px;
     font-weight: 500;
     color: var(--text);
-    letter-spacing: 0.05em;
+    letter-spacing: 0.02em;
+  }
+
+  .logo-divider {
+    width: 1px;
+    height: 16px;
+    background: var(--border-light);
+  }
+
+  .logo-sub {
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text2);
+    letter-spacing: 0.12em;
     text-transform: uppercase;
   }
 
-  .header-divider {
-    width: 1px;
-    height: 20px;
-    background: var(--border);
-    flex-shrink: 0;
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text2);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .live-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--online);
+    border-radius: 50%;
+    animation: breathe 2s ease-in-out infinite;
+  }
+
+  @keyframes breathe {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .last-updated {
+    font-size: 11px;
+    color: var(--text3);
+    letter-spacing: 0.05em;
+  }
+
+  .refresh-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    background: transparent;
+    border: 1px solid var(--border-light);
+    border-radius: 2px;
+    color: var(--text2);
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .refresh-btn.spinning svg { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* TOOLBAR */
+  .toolbar {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    height: 52px;
   }
 
   .search-wrap {
-    flex: 1;
-    max-width: 320px;
     position: relative;
-  }
-
-  .search-icon {
-    position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text3);
-    font-size: 14px;
-    pointer-events: none;
+    flex: 1;
+    max-width: 300px;
   }
 
   .search-input {
     width: 100%;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 12px 8px 34px;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border-light);
+    padding: 6px 0 6px 20px;
     color: var(--text);
-    font-family: var(--mono);
+    font-family: var(--sans);
     font-size: 12px;
+    font-weight: 300;
     outline: none;
     transition: border-color 0.2s;
+    letter-spacing: 0.05em;
   }
 
   .search-input:focus { border-color: var(--accent); }
   .search-input::placeholder { color: var(--text3); }
 
+  .search-icon {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text3);
+    font-size: 13px;
+  }
+
   .filters {
     display: flex;
-    gap: 6px;
-    flex-shrink: 0;
+    gap: 2px;
   }
 
   .filter-btn {
-    padding: 6px 14px;
-    border-radius: 6px;
-    border: 1px solid var(--border);
+    padding: 5px 16px;
     background: transparent;
-    color: var(--text2);
-    font-family: var(--mono);
+    border: 1px solid transparent;
+    color: var(--text3);
+    font-family: var(--sans);
     font-size: 11px;
     font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
     cursor: pointer;
     transition: all 0.15s;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    border-radius: 2px;
   }
 
-  .filter-btn:hover { border-color: var(--accent); color: var(--text); }
-  .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .filter-btn:hover { color: var(--text2); border-color: var(--border); }
+  .filter-btn.active { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
 
-  .header-right {
+  .toolbar-right {
     margin-left: auto;
     display: flex;
     align-items: center;
-    gap: 16px;
-    flex-shrink: 0;
+    gap: 20px;
   }
 
-  .stats {
+  .stat-group {
     display: flex;
-    gap: 16px;
     align-items: center;
+    gap: 16px;
   }
 
   .stat {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-family: var(--mono);
     font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 
-  .stat-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-  }
-
-  .stat-dot.green { background: var(--green); box-shadow: 0 0 6px var(--green); }
-  .stat-dot.red { background: var(--red); box-shadow: 0 0 6px var(--red); }
-
-  .refresh-btn {
-    padding: 6px 14px;
-    border-radius: 6px;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--text2);
-    font-family: var(--mono);
-    font-size: 11px;
-    cursor: pointer;
-    transition: all 0.15s;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .refresh-btn:hover { border-color: var(--accent); color: var(--text); }
-  .refresh-btn.spinning svg { animation: spin 1s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .last-updated {
-    font-family: var(--mono);
-    font-size: 10px;
-    color: var(--text3);
-  }
+  .stat-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .stat-dot.green { background: var(--online); }
+  .stat-dot.red { background: var(--offline); }
+  .stat span { color: var(--text2); }
 
   /* MAIN */
   .main {
     max-width: 1600px;
     margin: 0 auto;
-    padding: 24px;
+    padding: 32px;
+  }
+
+  /* SECTION */
+  .section { margin-bottom: 48px; }
+
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-title {
+    font-family: var(--serif);
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--text2);
+    letter-spacing: 0.05em;
+  }
+
+  .section-count {
+    font-size: 11px;
+    color: var(--text3);
+    letter-spacing: 0.05em;
   }
 
   /* GRID */
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
   }
 
   /* CARD */
   .card {
     background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    overflow: hidden;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background 0.15s;
     position: relative;
+    overflow: hidden;
   }
 
-  .card:hover {
-    border-color: var(--accent);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 32px rgba(79,127,255,0.15);
-  }
-
-  .card.offline {
-    border-color: #2a1a1a;
-    opacity: 0.7;
-  }
-
-  .card.offline:hover {
-    border-color: var(--red);
-    box-shadow: 0 8px 32px rgba(239,68,68,0.1);
-  }
+  .card:hover { background: var(--surface2); }
 
   .card-thumb {
     width: 100%;
     aspect-ratio: 16/9;
-    background: #0d0d14;
-    position: relative;
+    background: var(--bg);
     overflow: hidden;
+    position: relative;
   }
 
   .card-thumb img {
@@ -256,10 +304,14 @@
     height: 100%;
     object-fit: cover;
     display: block;
-    transition: transform 0.3s;
+    transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    filter: brightness(0.95);
   }
 
-  .card:hover .card-thumb img { transform: scale(1.03); }
+  .card:hover .card-thumb img {
+    transform: scale(1.04);
+    filter: brightness(1);
+  }
 
   .offline-placeholder {
     width: 100%;
@@ -269,49 +321,44 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    background: #0d0d14;
+    background: #0f0f0f;
   }
 
-  .offline-icon {
-    font-size: 28px;
-    opacity: 0.3;
-  }
+  .offline-icon { font-size: 20px; color: var(--text3); }
 
   .offline-text {
-    font-family: var(--mono);
-    font-size: 10px;
+    font-size: 9px;
     color: var(--text3);
+    letter-spacing: 0.15em;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
   }
 
   .card-status {
     position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 8px;
-    height: 8px;
+    top: 10px;
+    right: 10px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
-    border: 1.5px solid rgba(0,0,0,0.5);
   }
 
-  .card-status.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
-  .card-status.offline { background: var(--red); box-shadow: 0 0 6px var(--red); }
+  .card-status.online { background: var(--online); box-shadow: 0 0 8px var(--online); }
+  .card-status.offline { background: var(--offline); }
 
   .card-info {
-    padding: 10px 12px;
+    padding: 10px 14px 12px;
     border-top: 1px solid var(--border);
   }
 
   .card-name {
-    font-family: var(--mono);
     font-size: 11px;
     font-weight: 500;
     color: var(--text);
+    letter-spacing: 0.04em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    margin-bottom: 4px;
+    margin-bottom: 5px;
   }
 
   .card-meta {
@@ -321,25 +368,26 @@
   }
 
   .card-time {
-    font-family: var(--mono);
     font-size: 10px;
     color: var(--text3);
+    font-weight: 300;
+    letter-spacing: 0.03em;
   }
 
   .card-state {
-    font-family: var(--mono);
     font-size: 9px;
-    font-weight: 500;
-    padding: 2px 6px;
-    border-radius: 4px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    padding: 2px 7px;
+    border: 1px solid;
+    border-radius: 1px;
   }
 
-  .state-nsw { background: rgba(79,127,255,0.15); color: #4f7fff; }
-  .state-vic { background: rgba(124,58,237,0.15); color: #7c3aed; }
-  .state-qld { background: rgba(245,158,11,0.15); color: #f59e0b; }
-  .state-other { background: rgba(136,136,153,0.15); color: var(--text2); }
+  .state-nsw { color: var(--nsw); border-color: rgba(201,169,110,0.3); }
+  .state-vic { color: #a89070; border-color: rgba(139,115,85,0.3); }
+  .state-qld { color: #b89060; border-color: rgba(160,132,92,0.3); }
+  .state-other { color: var(--text3); border-color: var(--border); }
 
   /* LOADING */
   .loading-state {
@@ -347,37 +395,35 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 80px 20px;
-    gap: 16px;
+    padding: 100px 20px;
+    gap: 20px;
   }
 
-  .loading-spinner {
-    width: 32px;
-    height: 32px;
-    border: 2px solid var(--border);
+  .loading-ring {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border-light);
     border-top-color: var(--accent);
     border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+    animation: spin 1s linear infinite;
   }
 
   .loading-text {
-    font-family: var(--mono);
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text3);
+    letter-spacing: 0.15em;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
   }
 
   /* EMPTY */
   .empty-state {
-    grid-column: 1 / -1;
+    padding: 60px 20px;
     text-align: center;
-    padding: 80px 20px;
+    font-size: 11px;
     color: var(--text3);
-    font-family: var(--mono);
-    font-size: 12px;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    background: var(--surface);
   }
 
   /* LIGHTBOX */
@@ -386,175 +432,115 @@
     position: fixed;
     inset: 0;
     z-index: 1000;
-    background: rgba(0,0,0,0.92);
-    backdrop-filter: blur(8px);
+    background: rgba(8,8,8,0.96);
     align-items: center;
     justify-content: center;
-    padding: 20px;
+    padding: 24px;
   }
 
   .lightbox.open { display: flex; }
 
   .lightbox-inner {
     position: relative;
-    max-width: 90vw;
-    max-height: 90vh;
+    max-width: 92vw;
+    max-height: 92vh;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
   }
 
   .lightbox-img {
     max-width: 100%;
-    max-height: 80vh;
-    border-radius: 8px;
-    border: 1px solid var(--border);
+    max-height: 82vh;
     display: block;
+    border: 1px solid var(--border-light);
   }
 
-  .lightbox-meta {
+  .lightbox-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    padding: 0 2px;
   }
 
   .lightbox-name {
-    font-family: var(--mono);
-    font-size: 13px;
+    font-family: var(--serif);
+    font-size: 14px;
     color: var(--text);
+    font-weight: 400;
   }
 
   .lightbox-time {
-    font-family: var(--mono);
     font-size: 11px;
     color: var(--text3);
+    letter-spacing: 0.05em;
   }
 
   .lightbox-close {
     position: absolute;
-    top: -40px;
+    top: -44px;
     right: 0;
-    background: none;
-    border: 1px solid var(--border);
+    background: transparent;
+    border: 1px solid var(--border-light);
     color: var(--text2);
-    width: 32px;
-    height: 32px;
-    border-radius: 6px;
+    width: 34px;
+    height: 34px;
+    border-radius: 2px;
     cursor: pointer;
-    font-size: 16px;
+    font-size: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.15s;
   }
 
-  .lightbox-close:hover { border-color: var(--red); color: var(--red); }
+  .lightbox-close:hover { border-color: var(--offline); color: var(--offline); }
 
   .lightbox-nav {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    background: rgba(10,10,15,0.8);
-    border: 1px solid var(--border);
+    background: rgba(12,12,12,0.9);
+    border: 1px solid var(--border-light);
     color: var(--text2);
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
+    width: 44px;
+    height: 44px;
+    border-radius: 2px;
     cursor: pointer;
-    font-size: 18px;
+    font-size: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.15s;
   }
 
-  .lightbox-nav:hover { border-color: var(--accent); color: var(--text); }
-  .lightbox-nav.prev { left: -56px; }
-  .lightbox-nav.next { right: -56px; }
-
-  /* SKELETON */
-  .skeleton {
-    background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-    border-radius: 4px;
-  }
-
-  @keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-  }
-
-  .section-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .section-title {
-    font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--text3);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-  }
-
-  .section-count {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--text3);
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    padding: 2px 8px;
-    border-radius: 4px;
-  }
-
-  .offline-section { margin-top: 32px; }
+  .lightbox-nav:hover { border-color: var(--accent); color: var(--accent); }
+  .lightbox-nav.prev { left: -60px; }
+  .lightbox-nav.next { right: -60px; }
 
   /* SCROLLBAR */
-  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+  ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
 </style>
 </head>
 <body>
 
 <div class="header">
-  <div class="header-inner">
-    <div class="logo">
-      <div class="logo-dot"></div>
-      <span class="logo-text">NUC Dashboard</span>
-    </div>
-    <div class="header-divider"></div>
-    <div class="search-wrap">
-      <span class="search-icon">⌕</span>
-      <input type="text" class="search-input" id="searchInput" placeholder="Search NUC name...">
-    </div>
-    <div class="filters">
-      <button class="filter-btn active" data-state="all">All</button>
-      <button class="filter-btn" data-state="2">NSW</button>
-      <button class="filter-btn" data-state="3">VIC</button>
-      <button class="filter-btn" data-state="4">QLD</button>
+  <div class="header-top">
+    <div class="logo-area">
+      <span class="logo-wordmark">SHOWCASE</span>
+      <div class="logo-divider"></div>
+      <span class="logo-sub">NUC Dashboard</span>
     </div>
     <div class="header-right">
-      <div class="stats">
-        <div class="stat">
-          <div class="stat-dot green"></div>
-          <span id="onlineCount" style="font-family:var(--mono);font-size:11px;color:var(--text2);">— online</span>
-        </div>
-        <div class="stat">
-          <div class="stat-dot red"></div>
-          <span id="offlineCount" style="font-family:var(--mono);font-size:11px;color:var(--text2);">— offline</span>
-        </div>
+      <div class="live-badge">
+        <div class="live-dot"></div>
+        Live
       </div>
+      <span class="last-updated" id="lastUpdated">—</span>
       <button class="refresh-btn" id="refreshBtn" onclick="loadScreenshots()">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
           <path d="M21 3v5h-5"/>
           <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
@@ -562,17 +548,38 @@
         </svg>
         Refresh
       </button>
-      <span class="last-updated" id="lastUpdated">—</span>
+    </div>
+  </div>
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input type="text" class="search-input" id="searchInput" placeholder="Search display suite...">
+    </div>
+    <div class="filters">
+      <button class="filter-btn active" data-state="all">All</button>
+      <button class="filter-btn" data-state="2">NSW</button>
+      <button class="filter-btn" data-state="3">VIC</button>
+      <button class="filter-btn" data-state="4">QLD</button>
+    </div>
+    <div class="toolbar-right">
+      <div class="stat-group">
+        <div class="stat">
+          <div class="stat-dot green"></div>
+          <span id="onlineCount">—</span>
+        </div>
+        <div class="stat">
+          <div class="stat-dot red"></div>
+          <span id="offlineCount">—</span>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
-<div class="main">
-  <div id="content">
-    <div class="loading-state">
-      <div class="loading-spinner"></div>
-      <div class="loading-text">Loading screenshots...</div>
-    </div>
+<div class="main" id="mainContent">
+  <div class="loading-state">
+    <div class="loading-ring"></div>
+    <div class="loading-text">Loading display suites</div>
   </div>
 </div>
 
@@ -583,7 +590,7 @@
     <button class="lightbox-nav prev" onclick="navigateLightbox(-1)">‹</button>
     <button class="lightbox-nav next" onclick="navigateLightbox(1)">›</button>
     <img class="lightbox-img" id="lightboxImg" src="" alt="">
-    <div class="lightbox-meta">
+    <div class="lightbox-bar">
       <span class="lightbox-name" id="lightboxName"></span>
       <span class="lightbox-time" id="lightboxTime"></span>
     </div>
@@ -591,8 +598,9 @@
 </div>
 
 <script>
-const API_KEY     = 'AIzaSyBRVIbYrd43HdqoxNiw601_xC4jwTT_sEY';
-const FOLDER_ID   = '1KaH19gjY4Kln-NHhqkLPD_tMj85tTt2m';
+const API_KEY   = 'AIzaSyBRVIbYrd43HdqoxNiw601_xC4jwTT_sEY';
+const FOLDER_ID = '1KaH19gjY4Kln-NHhqkLPD_tMj85tTt2m';
+
 let allFiles = [];
 let filteredFiles = [];
 let currentIndex = 0;
@@ -600,130 +608,91 @@ let activeState = 'all';
 let searchQuery = '';
 
 function getStateFromName(name) {
-  const prefix = name.charAt(0);
-  if (prefix === '2') return '2';
-  if (prefix === '3') return '3';
-  if (prefix === '4') return '4';
+  const c = name.charAt(0);
+  if (c === '2') return '2';
+  if (c === '3') return '3';
+  if (c === '4') return '4';
   return 'other';
 }
 
-function getStateLabel(state) {
-  const map = { '2': 'NSW', '3': 'VIC', '4': 'QLD', 'other': 'Other' };
-  return map[state] || 'Other';
+function getStateLabel(s) {
+  return { '2': 'NSW', '3': 'VIC', '4': 'QLD', 'other': '—' }[s] || '—';
 }
 
-function getStateClass(state) {
-  const map = { '2': 'state-nsw', '3': 'state-vic', '4': 'state-qld' };
-  return map[state] || 'state-other';
+function getStateClass(s) {
+  return { '2': 'state-nsw', '3': 'state-vic', '4': 'state-qld' }[s] || 'state-other';
 }
 
 function getLastExpectedTime() {
   const now = new Date();
-  const hours = now.getHours();
-  const mins = now.getMinutes();
-
-  // Outside of operating hours (before 8:30am or after 5pm) - no screenshots expected
-  const totalMins = hours * 60 + mins;
-  if (totalMins < 8 * 60 + 30 || totalMins >= 17 * 60) return null;
-
-  // Work out the last scheduled run (8:30, 9:30, 10:30... etc)
-  // First run is 8:30, then every 60 mins
-  let lastRun = new Date(now);
-  lastRun.setSeconds(0);
-  lastRun.setMilliseconds(0);
-
-  // Start from 8:30am and find the last run that has passed
-  let runHour = 8;
-  let runMin  = 30;
-  let lastRunTime = null;
-
-  while (runHour < 17) {
-    const candidate = new Date(now);
-    candidate.setHours(runHour, runMin, 0, 0);
-    if (candidate <= now) {
-      lastRunTime = new Date(candidate);
-    } else {
-      break;
-    }
-    // Increment by 30 minutes
-    runMin += 30;
-    if (runMin >= 60) { runMin -= 60; runHour += 1; }
+  const total = now.getHours() * 60 + now.getMinutes();
+  if (total < 8 * 60 + 30 || total >= 17 * 60) return null;
+  let rH = 8, rM = 30, last = null;
+  while (rH < 17) {
+    const c = new Date(now); c.setHours(rH, rM, 0, 0);
+    if (c <= now) last = new Date(c);
+    else break;
+    rM += 30; if (rM >= 60) { rM -= 60; rH++; }
   }
-
-  return lastRunTime;
+  return last;
 }
 
 function isOffline(modifiedTime) {
-  const lastExpected = getLastExpectedTime();
-  if (!lastExpected) return false; // outside operating hours, not offline
-  const modified = new Date(modifiedTime);
-  // Allow 10 minute grace period for upload delay
-  const grace = new Date(lastExpected.getTime() + 10 * 60 * 1000);
-  return modified < lastExpected;
+  const last = getLastExpectedTime();
+  if (!last) return false;
+  return new Date(modifiedTime) < last;
 }
 
 function formatTime(modifiedTime) {
   const d = new Date(modifiedTime);
   const now = new Date();
-  const diffMins = Math.floor((now - d) / 60000);
-  if (diffMins < 1) return 'just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
+  const diff = Math.floor((now - d) / 60000);
+  if (diff < 1) return 'just now';
+  if (diff < 60) return `${diff}m ago`;
+  const h = Math.floor(diff / 60);
+  if (h < 24) return `${h}h ago`;
   return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-function getImageUrl(fileId) {
-  return `https://drive.google.com/thumbnail?id=${fileId}&sz=w400&key=${API_KEY}`;
+function cleanName(filename) {
+  return filename
+    .replace(/ - \d{4}-\d{2}-\d{2} \d{2}-\d{2}\.jpg$/, '')
+    .replace(/^\d+-/, '')
+    .replace(/-/g, ' / ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-function getFullImageUrl(fileId) {
-  return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600&key=${API_KEY}`;
-}
+function getThumbUrl(id) { return `https://drive.google.com/thumbnail?id=${id}&sz=w400&key=${API_KEY}`; }
+function getFullUrl(id)  { return `https://drive.google.com/thumbnail?id=${id}&sz=w1600&key=${API_KEY}`; }
 
 async function loadScreenshots() {
   const btn = document.getElementById('refreshBtn');
   btn.classList.add('spinning');
-
   try {
-    const url = `https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents+and+mimeType='image/jpeg'+and+trashed=false&fields=files(id,name,modifiedTime,thumbnailLink,webViewLink)&orderBy=name&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true&key=${API_KEY}`;
-    const res  = await fetch(url);
-    const data = await res.json();
-
-    if (data.error) {
-      showError(data.error.message);
-      return;
-    }
-
-    allFiles = (data.files || []).map(f => ({
-      ...f,
-      state: getStateFromName(f.name),
-      offline: isOffline(f.modifiedTime)
-    }));
-
+    const url = `https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents+and+mimeType='image/jpeg'+and+trashed=false&fields=files(id,name,modifiedTime)&orderBy=name&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true&key=${API_KEY}`;
+    const data = await fetch(url).then(r => r.json());
+    if (data.error) { showError(data.error.message); return; }
+    allFiles = (data.files || []).map(f => ({ ...f, state: getStateFromName(f.name), offline: isOffline(f.modifiedTime) }));
     updateStats();
     applyFilters();
-    document.getElementById('lastUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
-
-  } catch (err) {
-    showError(err.message);
-  } finally {
-    btn.classList.remove('spinning');
-  }
+    document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+  } catch(e) { showError(e.message); }
+  finally { btn.classList.remove('spinning'); }
 }
 
 function updateStats() {
-  const online  = allFiles.filter(f => !f.offline).length;
-  const offline = allFiles.filter(f => f.offline).length;
-  document.getElementById('onlineCount').textContent = `${online} online`;
-  document.getElementById('offlineCount').textContent = `${offline} offline`;
+  const on = allFiles.filter(f => !f.offline).length;
+  const off = allFiles.filter(f => f.offline).length;
+  document.getElementById('onlineCount').textContent = `${on} Online`;
+  document.getElementById('offlineCount').textContent = `${off} Offline`;
 }
 
 function applyFilters() {
   filteredFiles = allFiles.filter(f => {
-    const matchState  = activeState === 'all' || f.state === activeState;
-    const matchSearch = !searchQuery || f.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchState && matchSearch;
+    const ms = activeState === 'all' || f.state === activeState;
+    const mq = !searchQuery || f.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return ms && mq;
   });
   renderGrid();
 }
@@ -731,59 +700,56 @@ function applyFilters() {
 function renderGrid() {
   const online  = filteredFiles.filter(f => !f.offline);
   const offline = filteredFiles.filter(f => f.offline);
-  const content = document.getElementById('content');
-
-  if (filteredFiles.length === 0) {
-    content.innerHTML = '<div class="grid"><div class="empty-state">No NUCs found</div></div>';
-    return;
-  }
+  const el = document.getElementById('mainContent');
+  if (!filteredFiles.length) { el.innerHTML = '<div class="empty-state">No display suites found</div>'; return; }
 
   let html = '';
 
-  if (online.length > 0) {
-    html += `<div class="section-header">
-      <span class="section-title">Online</span>
-      <span class="section-count">${online.length}</span>
-    </div>
-    <div class="grid" id="onlineGrid">`;
-    online.forEach((f, i) => { html += renderCard(f, i); });
-    html += '</div>';
-  }
-
-  if (offline.length > 0) {
-    html += `<div class="offline-section">
+  if (online.length) {
+    html += `<div class="section">
       <div class="section-header">
-        <span class="section-title">Offline / No Recent Screenshot</span>
-        <span class="section-count">${offline.length}</span>
+        <span class="section-title">Active</span>
+        <span class="section-count">${online.length} display suite${online.length !== 1 ? 's' : ''}</span>
       </div>
-      <div class="grid" id="offlineGrid">`;
-    offline.forEach((f, i) => { html += renderCard(f, online.length + i); });
+      <div class="grid">`;
+    online.forEach((f, i) => html += renderCard(f, i));
     html += '</div></div>';
   }
 
-  content.innerHTML = html;
+  if (offline.length) {
+    html += `<div class="section">
+      <div class="section-header">
+        <span class="section-title">No Recent Screenshot</span>
+        <span class="section-count">${offline.length} display suite${offline.length !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="grid">`;
+    offline.forEach((f, i) => html += renderCard(f, online.length + i));
+    html += '</div></div>';
+  }
+
+  el.innerHTML = html;
 }
 
 function renderCard(f, idx) {
-  const state      = getStateLabel(f.state);
-  const stateClass = getStateClass(f.state);
-  const time       = formatTime(f.modifiedTime);
-  const cleanName  = f.name.replace(/ - \d{4}-\d{2}-\d{2} \d{2}-\d{2}\.jpg$/, '').replace(/^[\d]+-/, '').replace(/-/g, ' / ');
+  const name  = cleanName(f.name);
+  const state = getStateLabel(f.state);
+  const sc    = getStateClass(f.state);
+  const time  = formatTime(f.modifiedTime);
 
   if (f.offline) {
-    return `<div class="card offline" onclick="openLightbox(${idx})">
+    return `<div class="card" onclick="openLightbox(${idx})">
       <div class="card-thumb">
         <div class="offline-placeholder">
-          <div class="offline-icon">⚠</div>
+          <div class="offline-icon">—</div>
           <div class="offline-text">No recent screenshot</div>
         </div>
         <div class="card-status offline"></div>
       </div>
       <div class="card-info">
-        <div class="card-name" title="${f.name}">${cleanName}</div>
+        <div class="card-name" title="${f.name}">${name}</div>
         <div class="card-meta">
           <span class="card-time">${time}</span>
-          <span class="card-state ${stateClass}">${state}</span>
+          <span class="card-state ${sc}">${state}</span>
         </div>
       </div>
     </div>`;
@@ -791,14 +757,14 @@ function renderCard(f, idx) {
 
   return `<div class="card" onclick="openLightbox(${idx})">
     <div class="card-thumb">
-      <img src="${getImageUrl(f.id)}" alt="${f.name}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=offline-placeholder><div class=offline-icon>⚠</div><div class=offline-text>Load failed</div></div>'">
+      <img src="${getThumbUrl(f.id)}" alt="${name}" loading="lazy" onerror="this.style.display='none'">
       <div class="card-status online"></div>
     </div>
     <div class="card-info">
-      <div class="card-name" title="${f.name}">${cleanName}</div>
+      <div class="card-name" title="${f.name}">${name}</div>
       <div class="card-meta">
         <span class="card-time">${time}</span>
-        <span class="card-state ${stateClass}">${state}</span>
+        <span class="card-state ${sc}">${state}</span>
       </div>
     </div>
   </div>`;
@@ -814,10 +780,8 @@ function openLightbox(idx) {
 function showLightboxItem() {
   const f = filteredFiles[currentIndex];
   if (!f) return;
-  const img = document.getElementById('lightboxImg');
-  img.src = getFullImageUrl(f.id);
-  const cleanName = f.name.replace(/ - \d{4}-\d{2}-\d{2} \d{2}-\d{2}\.jpg$/, '').replace(/-/g, ' / ');
-  document.getElementById('lightboxName').textContent = cleanName;
+  document.getElementById('lightboxImg').src = getFullUrl(f.id);
+  document.getElementById('lightboxName').textContent = cleanName(f.name);
   document.getElementById('lightboxTime').textContent = formatTime(f.modifiedTime) + ' — ' + new Date(f.modifiedTime).toLocaleString('en-AU');
 }
 
@@ -826,39 +790,14 @@ function navigateLightbox(dir) {
   showLightboxItem();
 }
 
-function closeLightbox(e) {
-  if (e.target === document.getElementById('lightbox')) closeLightboxBtn();
-}
+function closeLightbox(e) { if (e.target === document.getElementById('lightbox')) closeLightboxBtn(); }
+function closeLightboxBtn() { document.getElementById('lightbox').classList.remove('open'); document.body.style.overflow = ''; }
 
-function closeLightboxBtn() {
-  document.getElementById('lightbox').classList.remove('open');
-  document.body.style.overflow = '';
-}
-
-function showError(msg) {
-  document.getElementById('content').innerHTML = `
-    <div class="loading-state">
-      <div style="font-size:32px">⚠</div>
-      <div class="loading-text" style="color:var(--red)">${msg}</div>
-      <div class="loading-text">Check the folder is public and the API key is valid</div>
-    </div>`;
-}
-
-// Event listeners
-document.getElementById('searchInput').addEventListener('input', e => {
-  searchQuery = e.target.value;
-  applyFilters();
-});
-
-document.querySelectorAll('.filter-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    activeState = btn.dataset.state;
-    applyFilters();
-  });
-});
-
+document.getElementById('searchInput').addEventListener('input', e => { searchQuery = e.target.value; applyFilters(); });
+document.querySelectorAll('.filter-btn').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.filter-btn').forEach(x => x.classList.remove('active'));
+  b.classList.add('active'); activeState = b.dataset.state; applyFilters();
+}));
 document.addEventListener('keydown', e => {
   if (!document.getElementById('lightbox').classList.contains('open')) return;
   if (e.key === 'Escape') closeLightboxBtn();
@@ -866,10 +805,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') navigateLightbox(1);
 });
 
-// Auto refresh every 5 minutes
 setInterval(loadScreenshots, 5 * 60 * 1000);
-
-// Initial load
 loadScreenshots();
 </script>
 </body>
