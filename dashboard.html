@@ -593,8 +593,6 @@
 <script>
 const API_KEY     = 'AIzaSyBRVIbYrd43HdqoxNiw601_xC4jwTT_sEY';
 const FOLDER_ID   = '1KaH19gjY4Kln-NHhqkLPD_tMj85tTt2m';
-const OFFLINE_HOURS = 2; // hours before considered offline
-
 let allFiles = [];
 let filteredFiles = [];
 let currentIndex = 0;
@@ -619,11 +617,47 @@ function getStateClass(state) {
   return map[state] || 'state-other';
 }
 
-function isOffline(modifiedTime) {
-  const modified = new Date(modifiedTime);
+function getLastExpectedTime() {
   const now = new Date();
-  const diffHours = (now - modified) / (1000 * 60 * 60);
-  return diffHours > OFFLINE_HOURS;
+  const hours = now.getHours();
+  const mins = now.getMinutes();
+
+  // Outside of operating hours (before 8:30am or after 5pm) - no screenshots expected
+  const totalMins = hours * 60 + mins;
+  if (totalMins < 8 * 60 + 30 || totalMins >= 17 * 60) return null;
+
+  // Work out the last scheduled run (8:30, 9:30, 10:30... etc)
+  // First run is 8:30, then every 60 mins
+  let lastRun = new Date(now);
+  lastRun.setSeconds(0);
+  lastRun.setMilliseconds(0);
+
+  // Start from 8:30am and find the last run that has passed
+  let runHour = 8;
+  let runMin  = 30;
+  let lastRunTime = null;
+
+  while (runHour < 17 || (runHour === 17 && runMin === 0)) {
+    const candidate = new Date(now);
+    candidate.setHours(runHour, runMin, 0, 0);
+    if (candidate <= now) {
+      lastRunTime = new Date(candidate);
+    } else {
+      break;
+    }
+    runHour += 1;
+  }
+
+  return lastRunTime;
+}
+
+function isOffline(modifiedTime) {
+  const lastExpected = getLastExpectedTime();
+  if (!lastExpected) return false; // outside operating hours, not offline
+  const modified = new Date(modifiedTime);
+  // Allow 10 minute grace period for upload delay
+  const grace = new Date(lastExpected.getTime() + 10 * 60 * 1000);
+  return modified < lastExpected;
 }
 
 function formatTime(modifiedTime) {
