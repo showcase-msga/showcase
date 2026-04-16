@@ -684,7 +684,7 @@ async function loadScreenshots() {
   btn.classList.add('spinning');
 
   try {
-    const url = `https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents+and+mimeType='image/jpeg'+and+trashed=false&fields=files(id,name,modifiedTime,thumbnailLink,webViewLink)&orderBy=name&pageSize=1000&key=${API_KEY}`;
+    const url = `https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents+and+mimeType='image/jpeg'+and+trashed=false&fields=files(id,name,modifiedTime,thumbnailLink,webViewLink)&orderBy=name&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true&key=${API_KEY}`;
     const res  = await fetch(url);
     const data = await res.json();
 
