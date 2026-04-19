@@ -30,12 +30,20 @@ $vbsContent = (Invoke-WebRequest "$baseUrl/run-silent.vbs" -UseBasicParsing).Con
 $batContent = (Invoke-WebRequest "$baseUrl/test-screenshot.bat" -UseBasicParsing).Content
 [System.IO.File]::WriteAllText("$monitorDir\test-screenshot.bat", $batContent)
 
-# ---- Step 4c: Download reset.bat ----
-$resetContent = (Invoke-WebRequest "$baseUrl/reset.bat" -UseBasicParsing).Content
-[System.IO.File]::WriteAllText("$monitorDir\reset.bat", $resetContent)
+# ---- Step 4c: Download uninstall.bat ----
+$uninstallContent = (Invoke-WebRequest "$baseUrl/uninstall.bat" -UseBasicParsing).Content
+[System.IO.File]::WriteAllText("$monitorDir\uninstall.bat", $uninstallContent)
+
+# ---- Step 4d: Download update.ps1 ----
+$updateContent = (Invoke-WebRequest "$baseUrl/update.ps1" -UseBasicParsing).Content
+[System.IO.File]::WriteAllText("$monitorDir\update.ps1", $updateContent)
 
 # ---- Step 5: Write nuc-id.txt ----
 [System.IO.File]::WriteAllText("$monitorDir\nuc-id.txt", $nucId)
+
+# ---- Step 5b: Write version.txt ----
+$currentVersion = (Invoke-WebRequest "$baseUrl/version.txt" -UseBasicParsing).Content.Trim()
+[System.IO.File]::WriteAllText("$monitorDir\version.txt", $currentVersion)
 
 # ---- Step 6: Create desktop shortcut ----
 $desktopPath  = [System.Environment]::GetFolderPath("CommonDesktopDirectory")
@@ -91,7 +99,47 @@ $xml = @"
 
 Register-ScheduledTask -TaskName $taskName -Xml $xml -Force | Out-Null
 
-# ---- Step 8: Add Defender exclusion ----
+# ---- Step 8: Register auto-updater scheduled task ----
+$updateTaskName = "Showcase NUC Monitor Updater"
+Unregister-ScheduledTask -TaskName $updateTaskName -Confirm:$false -ErrorAction SilentlyContinue
+
+$updateXml = @"
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>2026-01-01T02:00:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+    </CalendarTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <UserId>S-1-5-18</UserId>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <Hidden>true</Hidden>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <ExecutionTimeLimit>PT10M</ExecutionTimeLimit>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <Enabled>true</Enabled>
+  </Settings>
+  <Actions>
+    <Exec>
+      <Command>powershell.exe</Command>
+      <Arguments>-ExecutionPolicy Bypass -WindowStyle Hidden -NonInteractive -NoProfile -File "$monitorDir\update.ps1"</Arguments>
+    </Exec>
+  </Actions>
+</Task>
+"@
+
+Register-ScheduledTask -TaskName $updateTaskName -Xml $updateXml -Force | Out-Null
+
+# ---- Step 9: Add Defender exclusion ----
 Add-MpPreference -ExclusionPath $monitorDir -ErrorAction SilentlyContinue
 
 Write-Host "Showcase NUC Monitor installed successfully." -ForegroundColor Green
