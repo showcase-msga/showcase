@@ -1,4 +1,4 @@
-# Showcase NUC Monitor
+# Showcase NUC Monitor v1.4
 
 A lightweight, silent monitoring system for the AD Group Showcase NUC fleet. Each NUC automatically captures a screenshot every hour between 8:30am and 5:00pm and uploads it to a shared Google Drive folder for remote visual verification.
 
@@ -31,6 +31,7 @@ The NUC Monitor solves this by:
 - Running silently in the background on each NUC with zero user-facing popups or notifications
 - Taking a screenshot every hour from 8:30am to 5:00pm automatically
 - Capturing the full display at native resolution using DPI-aware capture — works on all display types including LEDs, projectors and standard TVs
+- Running in the logged-in user's interactive session so the actual visible kiosk screen is always captured
 - Uploading each screenshot to a central Google Drive folder named by NUC and timestamp
 - Automatically cleaning up screenshots older than 7 days to keep the folder manageable
 
@@ -41,19 +42,27 @@ The result is a single Google Drive folder your team can open each morning to vi
 ## How It Works
 
 ```
-NUC (Task Scheduler)
+NUC (Task Scheduler — InteractiveToken, logged-in user session)
     └── Triggers run-silent.vbs every hour (8:30am–5:00pm)
             └── Launches monitor.ps1 silently (no window, no popup)
                     └── Sets DPI awareness for accurate capture
-                    └── Reads true screen dimensions from GPU
+                    └── Reads true screen dimensions from GPU via GetDeviceCaps
                     └── Takes full screenshot at native resolution
                     └── Reads NUC name from nuc-id.txt
-                    └── Converts screenshot to base64 JPEG
+                    └── Converts screenshot to base64 JPEG at 70% quality
                     └── POSTs payload to Google Apps Script webhook
                             └── Decodes image
                             └── Deletes screenshots older than 7 days for this NUC
                             └── Saves new screenshot to Google Drive
 ```
+
+### Why InteractiveToken Matters
+
+The scheduled task runs using `InteractiveToken` which means it executes in the same desktop session as the logged-in user. This is critical because:
+
+- Running as `SYSTEM` has no desktop session — screenshots come out black
+- `InteractiveToken` sees exactly what is on screen, the same as manually running the bat file
+- The kiosk display, Chrome window and all visible content is captured correctly
 
 ### Schedule
 
@@ -74,7 +83,7 @@ NUC (Task Scheduler)
 ## File Breakdown
 
 ### `install.ps1`
-The master installer. Run in memory via the install command — never stored on the NUC itself. It:
+The master installer. Runs in memory via the install command — never stored on the NUC itself. It:
 - Sets PowerShell execution policy to Bypass
 - Creates `C:\ProgramData\showcase-monitor\`
 - Downloads `monitor.ps1` from GitHub and injects the webhook URL and NUC name
@@ -82,7 +91,7 @@ The master installer. Run in memory via the install command — never stored on 
 - Writes `nuc-id.txt` with the NUC name
 - Adds a Windows Defender exclusion for the monitor folder
 - Creates a **Showcase Monitor** desktop shortcut to the folder
-- Registers the Windows Scheduled Task
+- Registers the Windows Scheduled Task using `InteractiveToken` so it runs in the user's desktop session
 
 ---
 
@@ -100,7 +109,7 @@ The webhook URL and NUC name are injected at install time. The GitHub version us
 ---
 
 ### `run-silent.vbs`
-Launches `monitor.ps1` via PowerShell with zero visible window. Without this wrapper a brief PowerShell window would flash on the kiosk screen each time the task runs.
+Launches `monitor.ps1` via PowerShell with zero visible window. Runs without the `-NonInteractive` flag so it can access the logged-in user's desktop session and capture what is actually on screen.
 
 ---
 
@@ -142,8 +151,8 @@ Example:
 GitHub (showcase-msga/showcase)
 ├── install.ps1          ← Master installer (no sensitive data)
 ├── monitor.ps1          ← Screenshot script (placeholders only)
-├── run-silent.vbs       ← Silent launcher
-├── test-screenshot.bat  ← Manual test trigger
+├── run-silent.vbs       ← Silent launcher (InteractiveToken compatible)
+├── test-screenshot.bat  ← Manual test trigger (5s delay, auto-close)
 └── reset.bat            ← Full uninstall / reset
 
 Each NUC (C:\ProgramData\showcase-monitor\)
@@ -153,7 +162,7 @@ Each NUC (C:\ProgramData\showcase-monitor\)
 ├── reset.bat
 └── nuc-id.txt           ← Unique NUC name
 
-Google Apps Script (Web App)
+Google Apps Script (Web App — public access)
 └── Receives POST from NUCs
 └── Decodes base64 screenshot
 └── Deletes screenshots >7 days old for same NUC
@@ -244,7 +253,7 @@ Double-click `test-screenshot.bat` from the **Showcase Monitor** desktop shortcu
 powershell -ExecutionPolicy Bypass -Command "& {`$nucId='NUC/NAME/HERE'; `$webhook='WEBHOOK_URL'; Invoke-Expression (Invoke-WebRequest 'GITHUB_RAW_URL/install.ps1' -UseBasicParsing).Content}"
 ```
 
-> Webhook URL and GitHub URL are intentionally omitted. Refer to `nuc-install-commands.md` for full commands.
+> Webhook URL and GitHub URL intentionally omitted. Refer to `nuc-install-commands.md` for full commands.
 
 ### Files Deployed to Each NUC
 
@@ -290,16 +299,16 @@ STATE_PREFIX/CLIENT/PROJECT/SCREEN-TYPE
 
 ## Resetting a NUC
 
-If you need to start fresh on a NUC (wrong NUC name, broken install, script update):
+Use `reset.bat` to completely remove all monitor configurations and start fresh. Useful when a NUC has the wrong name, a broken install, or needs a script update.
 
-**Option 1 - Use reset.bat (recommended)**
+### Using reset.bat (Recommended)
 
-1. Open the **Showcase Monitor** folder on the NUC desktop
-2. Right-click `reset.bat` > **Run as Administrator**
-3. Wait for completion message
-4. Re-run the install command
+1. Open the **Showcase Monitor** folder from the desktop shortcut
+2. Right-click `reset.bat` and select **Run as administrator**
+3. Wait for the completion message
+4. Re-run the correct install command from `nuc-install-commands.md`
 
-**Option 2 - Manual reset via PowerShell**
+### Manual Reset via PowerShell
 
 ```powershell
 Unregister-ScheduledTask -TaskName "Showcase NUC Monitor" -Confirm:$false
@@ -322,9 +331,7 @@ Then re-run the install command.
 
 ### Pushing Updates to Already-Installed NUCs
 
-Re-run the install command on each NUC. It overwrites all files with the latest from GitHub and recreates the scheduled task.
-
-There is no bulk update mechanism. Each NUC must be updated individually via remote access.
+Re-run the install command on each NUC. It overwrites all files with the latest from GitHub and recreates the scheduled task. There is no bulk update mechanism — each NUC must be updated individually via remote access.
 
 ---
 
@@ -347,7 +354,7 @@ Examples:
 
 ### Retention
 
-- Screenshots older than **7 days** per NUC are deleted automatically on each new upload
+- Screenshots older than **7 days** per NUC deleted automatically on each new upload
 - Handled by Google Apps Script, not the NUC
 - Approximately **9 screenshots per NUC per day**
 
@@ -362,6 +369,14 @@ Examples:
 
 ## Troubleshooting
 
+### Screenshots are all black
+
+**Cause:** Scheduled task was running as SYSTEM with no desktop session
+
+**Fix:** Re-run the install command to get the updated `install.ps1` which uses `InteractiveToken`. The task now runs in the logged-in user's session.
+
+---
+
 ### Script blocked by antivirus
 
 **Symptom:** `ScriptContainsMaliciousContent` error
@@ -374,23 +389,11 @@ Then re-run the install command.
 
 ---
 
-### Screenshot only shows part of the screen
+### Screenshot shows partial screen
 
-**Symptom:** Screenshot captures a corner or partial view
+**Cause:** DPI scaling mismatch on older install
 
-**Cause:** DPI scaling mismatch
-
-**Fix:** Ensure the latest `monitor.ps1` is installed. The current version uses `GetDeviceCaps` for DPI-aware capture. Re-run the install command to pull the latest.
-
----
-
-### Black screen screenshot
-
-**Symptom:** Screenshot is pure black
-
-**Cause:** NUC has no active display connected (headless). Windows renders nothing.
-
-**Fix:** Connect a physical display or dummy HDMI plug to the NUC.
+**Fix:** Re-run the install command to pull the latest `monitor.ps1` with DPI-aware capture.
 
 ---
 
@@ -401,7 +404,7 @@ Then re-run the install command.
 Test-NetConnection google.com -Port 443
 ```
 
-**Check 2:** Run script directly and watch for errors
+**Check 2:** Run script directly
 ```powershell
 powershell -ExecutionPolicy Bypass -NoProfile -File "C:\ProgramData\showcase-monitor\monitor.ps1"
 ```
@@ -412,39 +415,43 @@ powershell -ExecutionPolicy Bypass -NoProfile -File "C:\ProgramData\showcase-mon
 
 ### Wrong NUC name in filename
 
-**Fix:** Check and correct `nuc-id.txt`
-```powershell
-Get-Content "C:\ProgramData\showcase-monitor\nuc-id.txt"
-```
-
-If wrong, run `reset.bat` as Admin and re-run the correct install command.
+**Fix:** Run `reset.bat` as Admin then re-run the correct install command.
 
 ---
 
 ### Scheduled task not running
 
-**Fix:** Open `taskschd.msc` and verify **Showcase NUC Monitor** exists with status **Ready**. If missing, re-run the install command.
+**Fix:** Open `taskschd.msc`, verify **Showcase NUC Monitor** exists with status **Ready**. If missing, re-run the install command.
 
 ---
 
 ### 401 Unauthorized
 
-**Cause:** Webhook URL is using the domain-restricted format
-
-**Fix:** Ensure webhook URL in `monitor.ps1` uses:
+**Fix:** Ensure webhook URL uses:
 ```
 https://script.google.com/macros/s/SCRIPT_ID/exec
 ```
-Not:
-```
-https://script.google.com/a/macros/ad-group.com.au/s/SCRIPT_ID/exec
-```
-
-Run `reset.bat` and re-run the install command with the correct URL.
+Run `reset.bat` and reinstall with the correct URL.
 
 ---
 
 ## Changelog
+
+### v1.4 — April 2026
+- Added `update.ps1` — silent auto-updater runs daily at 2am
+- Version check via `version.txt` on GitHub, updates only if version differs
+- Webhook URL and NUC ID preserved automatically during updates
+- All update activity logged to `update.log` with timestamp and version
+- Renamed `reset.bat` to `uninstall.bat`
+- `uninstall.bat` now also removes the updater scheduled task
+- `install.ps1` now registers two scheduled tasks: screenshot and updater
+- `version.txt` written to NUC folder at install time
+
+### v1.3 — April 2026
+- Fixed black screenshot issue by changing scheduled task from SYSTEM to InteractiveToken
+- Task now runs in the logged-in user's desktop session, capturing the actual visible screen
+- Removed `-NonInteractive` flag from `run-silent.vbs` to allow desktop session access
+- Added `reset.bat` to the list of files downloaded by `install.ps1`
 
 ### v1.2 — April 2026
 - Fixed screenshot capture using DPI-aware `GetDeviceCaps` method
@@ -455,7 +462,6 @@ Run `reset.bat` and re-run the install command with the correct URL.
 ### v1.1 — April 2026
 - Added `test-screenshot.bat` for manual screenshot testing
 - Fixed `test-screenshot.bat` to run silently with no visible window
-- Added `reset.bat` to file download list in `install.ps1`
 
 ### v1.0 — April 2026
 - Initial release
