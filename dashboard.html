@@ -285,18 +285,17 @@
     background: var(--surface);
     cursor: pointer;
     transition: background 0.15s;
-    position: relative;
-    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
   .card:hover { background: var(--surface2); }
 
   .card-thumb {
-    width: 100%;
-    aspect-ratio: 16/9;
+    position: relative;
+    aspect-ratio: 16 / 10;
     background: var(--bg);
     overflow: hidden;
-    position: relative;
   }
 
   .card-thumb img {
@@ -304,14 +303,20 @@
     height: 100%;
     object-fit: cover;
     display: block;
-    transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-    filter: brightness(0.95);
   }
 
-  .card:hover .card-thumb img {
-    transform: scale(1.04);
-    filter: brightness(1);
+  .card-status {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.4);
   }
+
+  .card-status.online { background: var(--online); }
+  .card-status.offline { background: var(--offline); }
 
   .offline-placeholder {
     width: 100%;
@@ -321,207 +326,173 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    background: #0f0f0f;
+    color: var(--text3);
   }
 
-  .offline-icon { font-size: 20px; color: var(--text3); }
+  .offline-icon {
+    font-size: 24px;
+    font-weight: 300;
+    color: var(--offline);
+    opacity: 0.6;
+  }
 
   .offline-text {
-    font-size: 9px;
-    color: var(--text3);
-    letter-spacing: 0.15em;
+    font-size: 10px;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
   }
 
-  .card-status {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-  }
-
-  .card-status.online { background: var(--online); box-shadow: 0 0 8px var(--online); }
-  .card-status.offline { background: var(--offline); }
-
   .card-info {
-    padding: 10px 14px 12px;
-    border-top: 1px solid var(--border);
+    padding: 14px 16px 16px;
   }
 
   .card-name {
-    font-size: 11px;
+    font-family: var(--sans);
+    font-size: 13px;
     font-weight: 500;
     color: var(--text);
-    letter-spacing: 0.04em;
+    letter-spacing: 0.01em;
+    margin-bottom: 6px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    margin-bottom: 5px;
   }
 
   .card-meta {
     display: flex;
     align-items: center;
     justify-content: space-between;
-  }
-
-  .card-time {
     font-size: 10px;
     color: var(--text3);
-    font-weight: 300;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
   }
+
+  .card-time { color: var(--text2); }
 
   .card-state {
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    padding: 2px 7px;
-    border: 1px solid;
-    border-radius: 1px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
   }
 
-  .state-nsw { color: var(--nsw); border-color: rgba(201,169,110,0.3); }
-  .state-vic { color: #a89070; border-color: rgba(139,115,85,0.3); }
-  .state-qld { color: #b89060; border-color: rgba(160,132,92,0.3); }
-  .state-other { color: var(--text3); border-color: var(--border); }
-
-  /* LOADING */
-  .loading-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 100px 20px;
-    gap: 20px;
-  }
-
-  .loading-ring {
-    width: 28px;
-    height: 28px;
-    border: 1px solid var(--border-light);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-
-  .loading-text {
-    font-size: 11px;
-    color: var(--text3);
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-  }
-
-  /* EMPTY */
-  .empty-state {
-    padding: 60px 20px;
-    text-align: center;
-    font-size: 11px;
-    color: var(--text3);
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    background: var(--surface);
-  }
+  .state-nsw { color: var(--nsw); background: rgba(201,169,110,0.1); }
+  .state-vic { color: var(--vic); background: rgba(139,115,85,0.1); }
+  .state-qld { color: var(--qld); background: rgba(160,132,92,0.1); }
+  .state-other { color: var(--text3); background: rgba(100,100,100,0.1); }
 
   /* LIGHTBOX */
   .lightbox {
     display: none;
     position: fixed;
     inset: 0;
-    z-index: 1000;
-    background: rgba(8,8,8,0.96);
+    background: rgba(0,0,0,0.96);
+    z-index: 200;
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: 40px;
   }
 
   .lightbox.open { display: flex; }
 
   .lightbox-inner {
+    max-width: 100%;
+    max-height: 100%;
     position: relative;
-    max-width: 92vw;
-    max-height: 92vh;
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 16px;
   }
 
   .lightbox-img {
     max-width: 100%;
-    max-height: 82vh;
+    max-height: calc(100vh - 160px);
+    object-fit: contain;
     display: block;
-    border: 1px solid var(--border-light);
   }
+
+  .lightbox-close {
+    position: absolute;
+    top: -40px;
+    right: 0;
+    background: transparent;
+    border: none;
+    color: var(--text2);
+    font-size: 20px;
+    cursor: pointer;
+    transition: color 0.2s;
+  }
+
+  .lightbox-close:hover { color: var(--accent); }
+
+  .lightbox-nav {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--text2);
+    font-size: 40px;
+    cursor: pointer;
+    padding: 20px;
+    transition: color 0.2s;
+    font-family: var(--serif);
+  }
+
+  .lightbox-nav:hover { color: var(--accent); }
+  .lightbox-nav.prev { left: 40px; }
+  .lightbox-nav.next { right: 40px; }
 
   .lightbox-bar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0 2px;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--text2);
+    letter-spacing: 0.05em;
   }
 
   .lightbox-name {
     font-family: var(--serif);
     font-size: 14px;
     color: var(--text);
-    font-weight: 400;
   }
 
   .lightbox-time {
     font-size: 11px;
     color: var(--text3);
-    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
   }
 
-  .lightbox-close {
-    position: absolute;
-    top: -44px;
-    right: 0;
-    background: transparent;
-    border: 1px solid var(--border-light);
-    color: var(--text2);
-    width: 34px;
-    height: 34px;
-    border-radius: 2px;
-    cursor: pointer;
-    font-size: 14px;
+  /* LOADING / EMPTY / ERROR */
+  .loading-state, .empty-state, .error-state {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    transition: all 0.15s;
-  }
-
-  .lightbox-close:hover { border-color: var(--offline); color: var(--offline); }
-
-  .lightbox-nav {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    background: rgba(12,12,12,0.9);
-    border: 1px solid var(--border-light);
+    padding: 80px 20px;
     color: var(--text2);
-    width: 44px;
-    height: 44px;
-    border-radius: 2px;
-    cursor: pointer;
-    font-size: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.15s;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    gap: 16px;
   }
 
-  .lightbox-nav:hover { border-color: var(--accent); color: var(--accent); }
-  .lightbox-nav.prev { left: -60px; }
-  .lightbox-nav.next { right: -60px; }
+  .loading-ring {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
 
-  /* SCROLLBAR */
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: var(--bg); }
-  ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+  .loading-text { color: var(--text3); }
+
+  .error-state { color: var(--offline); }
 </style>
 </head>
 <body>
@@ -681,6 +652,10 @@ async function loadScreenshots() {
   finally { btn.classList.remove('spinning'); }
 }
 
+function showError(msg) {
+  document.getElementById('mainContent').innerHTML = `<div class="error-state">Error: ${msg}</div>`;
+}
+
 function updateStats() {
   const on = allFiles.filter(f => !f.offline).length;
   const off = allFiles.filter(f => f.offline).length;
@@ -700,6 +675,10 @@ function applyFilters() {
 function renderGrid() {
   const online  = filteredFiles.filter(f => !f.offline);
   const offline = filteredFiles.filter(f => f.offline);
+
+  // Reorder filteredFiles so array indexes match render order (online first, then offline)
+  filteredFiles = [...online, ...offline];
+
   const el = document.getElementById('mainContent');
   if (!filteredFiles.length) { el.innerHTML = '<div class="empty-state">No display suites found</div>'; return; }
 
