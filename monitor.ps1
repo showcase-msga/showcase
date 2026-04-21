@@ -1,6 +1,7 @@
 # ============================================================
-# Showcase NUC Monitor - monitor.ps1
+# Showcase NUC Monitor - monitor.ps1 (v1.5)
 # Webhook and NUC ID injected at install time
+# v1.5: Added black header bar listing visible windows
 # ============================================================
 
 $ErrorActionPreference = "SilentlyContinue"
@@ -51,6 +52,51 @@ if ($height -gt $maxHeight) {
   $bitmap.Dispose()
   $bitmap = $resized
 }
+
+# ---- v1.5: Build black header bar with visible windows list ----
+$windows = Get-Process |
+    Where-Object { $_.MainWindowTitle -and $_.MainWindowHandle -ne 0 } |
+    Select-Object ProcessName, MainWindowTitle |
+    Sort-Object ProcessName
+
+$headerLines = @(
+    "NUC: $nucName",
+    "$timestamp",
+    "Open Windows:"
+)
+
+if (-not $windows -or $windows.Count -eq 0) {
+    $headerLines += "  (none)"
+} else {
+    foreach ($w in $windows) {
+        $title = $w.MainWindowTitle
+        if ($title.Length -gt 80) { $title = $title.Substring(0, 77) + "..." }
+        $headerLines += "  $($w.ProcessName)  -  $title"
+    }
+}
+
+$headerText   = $headerLines -join "`n"
+$lineHeight   = 24
+$headerHeight = 20 + ($headerLines.Count * $lineHeight) + 10
+
+$finalWidth  = $bitmap.Width
+$finalHeight = $bitmap.Height + $headerHeight
+$finalBmp    = New-Object System.Drawing.Bitmap($finalWidth, $finalHeight)
+$fg          = [System.Drawing.Graphics]::FromImage($finalBmp)
+
+$fg.FillRectangle([System.Drawing.Brushes]::Black, 0, 0, $finalWidth, $headerHeight)
+
+$font      = New-Object System.Drawing.Font("Consolas", 14, [System.Drawing.FontStyle]::Regular)
+$textBrush = [System.Drawing.Brushes]::White
+$fg.DrawString($headerText, $font, $textBrush, 20, 10)
+
+$fg.DrawImage($bitmap, 0, $headerHeight)
+
+$fg.Dispose()
+$font.Dispose()
+$bitmap.Dispose()
+$bitmap = $finalBmp
+# ---- end v1.5 addition ----
 
 # Save as JPEG 50% quality
 $jpegEncoder   = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
