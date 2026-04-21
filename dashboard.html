@@ -531,6 +531,7 @@
       <button class="filter-btn" data-state="2">NSW</button>
       <button class="filter-btn" data-state="3">VIC</button>
       <button class="filter-btn" data-state="4">QLD</button>
+      <button class="filter-btn" data-state="other">Other</button>
     </div>
     <div class="toolbar-right">
       <div class="stat-group">
@@ -587,7 +588,7 @@ function getStateFromName(name) {
 }
 
 function getStateLabel(s) {
-  return { '2': 'NSW', '3': 'VIC', '4': 'QLD', 'other': '—' }[s] || '—';
+  return { '2': 'NSW', '3': 'VIC', '4': 'QLD', 'other': 'Other' }[s] || 'Other';
 }
 
 function getStateClass(s) {
