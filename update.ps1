@@ -1,7 +1,8 @@
 # ============================================================
-# Showcase NUC Monitor - update.ps1
+# Showcase NUC Monitor - update.ps1 (v1.5)
 # Runs daily at 2am via scheduled task
 # Checks GitHub version, updates files if newer version found
+# v1.5: Also reconciles scheduled task settings (random delay)
 # Fully silent - no windows, no popups
 # ============================================================
 
@@ -16,6 +17,21 @@ $timestamp   = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 function Write-Log($message) {
     $entry = "$timestamp | $message"
     Add-Content -Path $logFile -Value $entry -ErrorAction SilentlyContinue
+}
+
+# ---- v1.5: Ensure the screenshot task has the random delay applied ----
+# This runs every night regardless of whether files need updating,
+# so existing NUCs pick up the random delay without a full reinstall.
+try {
+    $task = Get-ScheduledTask -TaskName "Showcase NUC Monitor" -ErrorAction Stop
+    $currentDelay = $task.Triggers[0].RandomDelay
+    if ($currentDelay -ne "PT10M") {
+        $task.Triggers[0].RandomDelay = "PT10M"
+        Set-ScheduledTask -InputObject $task | Out-Null
+        Write-Log "Applied RandomDelay PT10M to screenshot task (was: '$currentDelay')"
+    }
+} catch {
+    Write-Log "Could not reconcile screenshot task: $($_.Exception.Message)"
 }
 
 # ---- Check internet connectivity ----
