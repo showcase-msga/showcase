@@ -1,4 +1,4 @@
-# Showcase NUC Monitor v1.4
+# Showcase NUC Monitor v1.5
 
 A lightweight, silent monitoring system for the AD Group Showcase NUC fleet. Each NUC automatically captures a screenshot every hour between 8:30am and 5:00pm and uploads it to a shared Google Drive folder for remote visual verification.
 
@@ -29,9 +29,10 @@ The Showcase NUC fleet runs Chrome kiosk displays across display suites national
 The NUC Monitor solves this by:
 
 - Running silently in the background on each NUC with zero user-facing popups or notifications
-- Taking a screenshot every hour from 8:30am to 5:00pm automatically
+- Taking a screenshot every 30 minutes from 8:30am to 5:00pm automatically, with a random 0-10 minute delay on each trigger to spread fleet load
 - Capturing the full display at native resolution using DPI-aware capture — works on all display types including LEDs, projectors and standard TVs
 - Running in the logged-in user's interactive session so the actual visible kiosk screen is always captured
+- Embedding a black header bar on each screenshot showing the NUC ID, timestamp, and a list of visible windows for quick diagnostic context
 - Uploading each screenshot to a central Google Drive folder named by NUC and timestamp
 - Automatically cleaning up screenshots older than 7 days to keep the folder manageable
 
@@ -436,6 +437,14 @@ Run `reset.bat` and reinstall with the correct URL.
 ---
 
 ## Changelog
+
+### v1.5 — April 2026
+- Added 10-minute random delay to screenshot scheduled task, spreading fleet uploads across a 10-minute window to eliminate Apps Script concurrency rejections during peak bursts
+- `update.ps1` now reconciles the random delay on every run, so existing NUCs pick up the fix at the next nightly auto-update without needing reinstall
+- `monitor.ps1` now prepends a black header bar to every screenshot showing NUC ID, timestamp, and the list of visible windows (process name + window title) for quick diagnostic context
+- `install.ps1` task XML updated with `<RandomDelay>PT10M</RandomDelay>` for new installs
+- Apps Script simplified: Archive folder logic removed, Dashboard folder now the single source of truth (latest screenshot per NUC)
+- Documentation updated to reflect 30-minute cadence (was incorrectly documented as hourly in earlier versions)
 
 ### v1.4 — April 2026
 - Added `update.ps1` — silent auto-updater runs daily at 2am
