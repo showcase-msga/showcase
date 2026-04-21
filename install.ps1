@@ -1,7 +1,9 @@
 # ============================================================
-# Showcase NUC Monitor - install.ps1
+# Showcase NUC Monitor - install.ps1 (v1.5)
 # Called remotely, variables injected via command line
 # Usage: $nucId and $webhook must be set before calling this
+# v1.5: 10-minute random delay on screenshot trigger to prevent
+#       Apps Script concurrency saturation across the fleet
 # ============================================================
 
 $monitorDir  = "C:\ProgramData\showcase-monitor"
@@ -55,6 +57,7 @@ $shortcut.Description = "Showcase NUC Monitor Scripts"
 $shortcut.Save()
 
 # ---- Step 7: Create scheduled task via XML ----
+# v1.5: Added <RandomDelay>PT10M</RandomDelay> to spread fleet load
 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
 
 $vbsPath = "$monitorDir\run-silent.vbs"
@@ -65,6 +68,7 @@ $xml = @"
     <CalendarTrigger>
       <StartBoundary>2026-01-01T08:30:00</StartBoundary>
       <Enabled>true</Enabled>
+      <RandomDelay>PT10M</RandomDelay>
       <ScheduleByDay>
         <DaysInterval>1</DaysInterval>
       </ScheduleByDay>
