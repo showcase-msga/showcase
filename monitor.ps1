@@ -1,7 +1,6 @@
 # ============================================================
-# Showcase NUC Monitor - monitor.ps1 (v1.5)
+# Showcase NUC Monitor - monitor.ps1 (v1.6)
 # Webhook and NUC ID injected at install time
-# v1.5: Added black header bar listing visible windows
 # ============================================================
 
 $ErrorActionPreference = "SilentlyContinue"
@@ -9,6 +8,27 @@ $ErrorActionPreference = "SilentlyContinue"
 $webhookUrl = "WEBHOOK_URL_PLACEHOLDER"
 $nucName    = "NUCID_PLACEHOLDER"
 $tempPath   = "$env:TEMP\nuc_shot.jpg"
+
+# ---- v1.6 BOOTSTRAP: One-time refresh of update.ps1 ----
+# v1.5 update.ps1 doesn't download a new update.ps1, which means v1.6's
+# proper random-delay reconciliation block can't deploy via the normal
+# auto-update path. This bootstrap fires from monitor.ps1 (which IS
+# auto-deployed) to download v1.6 update.ps1 once, then marks itself done.
+# Safe to remove in v1.7 or later once the fleet is on v1.6.
+$monitorDir       = "C:\ProgramData\showcase-monitor"
+$bootstrapMarker  = "$monitorDir\v16-bootstrap-done.txt"
+if (-not (Test-Path $bootstrapMarker)) {
+    try {
+        $newUpdate = (Invoke-WebRequest "https://raw.githubusercontent.com/showcase-msga/showcase/main/update.ps1" -UseBasicParsing -TimeoutSec 15).Content
+        if ($newUpdate -and $newUpdate.Length -gt 500 -and $newUpdate -match "Showcase NUC Monitor") {
+            [System.IO.File]::WriteAllText("$monitorDir\update.ps1", $newUpdate)
+            New-Item $bootstrapMarker -ItemType File -Force | Out-Null
+            Add-Content -Path "$monitorDir\update.log" -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') | Bootstrap: refreshed update.ps1 to v1.6 from monitor.ps1"
+        }
+    } catch {
+        # Silent fail - bootstrap will retry on next monitor.ps1 run (every 30 min)
+    }
+}
 
 # Timestamp for filename
 $timestamp = Get-Date -Format "yyyy-MM-dd HH-mm"
@@ -52,51 +72,6 @@ if ($height -gt $maxHeight) {
   $bitmap.Dispose()
   $bitmap = $resized
 }
-
-# ---- v1.5: Build black header bar with visible windows list ----
-$windows = Get-Process |
-    Where-Object { $_.MainWindowTitle -and $_.MainWindowHandle -ne 0 } |
-    Select-Object ProcessName, MainWindowTitle |
-    Sort-Object ProcessName
-
-$headerLines = @(
-    "NUC: $nucName",
-    "$timestamp",
-    "Open Windows:"
-)
-
-if (-not $windows -or $windows.Count -eq 0) {
-    $headerLines += "  (none)"
-} else {
-    foreach ($w in $windows) {
-        $title = $w.MainWindowTitle
-        if ($title.Length -gt 80) { $title = $title.Substring(0, 77) + "..." }
-        $headerLines += "  $($w.ProcessName)  -  $title"
-    }
-}
-
-$headerText   = $headerLines -join "`n"
-$lineHeight   = 24
-$headerHeight = 20 + ($headerLines.Count * $lineHeight) + 10
-
-$finalWidth  = $bitmap.Width
-$finalHeight = $bitmap.Height + $headerHeight
-$finalBmp    = New-Object System.Drawing.Bitmap($finalWidth, $finalHeight)
-$fg          = [System.Drawing.Graphics]::FromImage($finalBmp)
-
-$fg.FillRectangle([System.Drawing.Brushes]::Black, 0, 0, $finalWidth, $headerHeight)
-
-$font      = New-Object System.Drawing.Font("Consolas", 14, [System.Drawing.FontStyle]::Regular)
-$textBrush = [System.Drawing.Brushes]::White
-$fg.DrawString($headerText, $font, $textBrush, 20, 10)
-
-$fg.DrawImage($bitmap, 0, $headerHeight)
-
-$fg.Dispose()
-$font.Dispose()
-$bitmap.Dispose()
-$bitmap = $finalBmp
-# ---- end v1.5 addition ----
 
 # Save as JPEG 50% quality
 $jpegEncoder   = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }

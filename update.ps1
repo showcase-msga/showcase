@@ -1,9 +1,9 @@
 # ============================================================
-# Showcase NUC Monitor - update.ps1 (v1.5)
+# Showcase NUC Monitor - update.ps1 (v1.6)
 # Runs daily at 2am via scheduled task
-# Checks GitHub version, updates files if newer version found
-# v1.5: Also reconciles scheduled task settings (random delay)
-# Fully silent - no windows, no popups
+# v1.6: Replaced broken Set-ScheduledTask reconciliation with
+#       full task re-registration via XML. Guarantees the
+#       random delay is applied on every NUC, fleet-wide.
 # ============================================================
 
 $ErrorActionPreference = "SilentlyContinue"
@@ -19,19 +19,71 @@ function Write-Log($message) {
     Add-Content -Path $logFile -Value $entry -ErrorAction SilentlyContinue
 }
 
-# ---- v1.5: Ensure the screenshot task has the random delay applied ----
-# This runs every night regardless of whether files need updating,
-# so existing NUCs pick up the random delay without a full reinstall.
+# ---- v1.6: Re-register screenshot task with random delay baked in ----
+# Idempotent: only re-registers if the delay isn't already PT10M.
+# Uses the same XML pattern as install.ps1, guaranteed to apply.
+$taskName = "Showcase NUC Monitor"
+$vbsPath  = "$monitorDir\run-silent.vbs"
+
 try {
-    $task = Get-ScheduledTask -TaskName "Showcase NUC Monitor" -ErrorAction Stop
-    $currentDelay = $task.Triggers[0].RandomDelay
+    $existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
+    $currentDelay = $existingTask.Triggers[0].RandomDelay
+
     if ($currentDelay -ne "PT10M") {
-        $task.Triggers[0].RandomDelay = "PT10M"
-        Set-ScheduledTask -InputObject $task | Out-Null
-        Write-Log "Applied RandomDelay PT10M to screenshot task (was: '$currentDelay')"
+        $screenshotXml = @"
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>2026-01-01T08:30:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <RandomDelay>PT10M</RandomDelay>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+      <Repetition>
+        <Interval>PT30M</Interval>
+        <Duration>PT8H30M</Duration>
+        <StopAtDurationEnd>false</StopAtDurationEnd>
+      </Repetition>
+    </CalendarTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <Hidden>true</Hidden>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <ExecutionTimeLimit>PT5M</ExecutionTimeLimit>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <Enabled>true</Enabled>
+  </Settings>
+  <Actions>
+    <Exec>
+      <Command>wscript.exe</Command>
+      <Arguments>"$vbsPath"</Arguments>
+    </Exec>
+  </Actions>
+</Task>
+"@
+
+        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction Stop
+        Register-ScheduledTask -TaskName $taskName -Xml $screenshotXml -Force -ErrorAction Stop | Out-Null
+
+        # Verify the delay actually applied
+        $verifyTask = Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
+        $verifyDelay = $verifyTask.Triggers[0].RandomDelay
+        if ($verifyDelay -eq "PT10M") {
+            Write-Log "Re-registered screenshot task with RandomDelay PT10M (was: '$currentDelay')"
+        } else {
+            Write-Log "WARNING: Re-registered task but verification shows RandomDelay = '$verifyDelay' (expected PT10M)"
+        }
     }
 } catch {
-    Write-Log "Could not reconcile screenshot task: $($_.Exception.Message)"
+    Write-Log "Failed to reconcile screenshot task: $($_.Exception.Message)"
 }
 
 # ---- Check internet connectivity ----
@@ -94,6 +146,10 @@ try {
     # uninstall.bat
     $uninstallContent = (Invoke-WebRequest "$baseUrl/uninstall.bat" -UseBasicParsing).Content
     [System.IO.File]::WriteAllText("$monitorDir\uninstall.bat", $uninstallContent)
+
+    # v1.6: update.ps1 - self-refresh so future updates to the updater itself can deploy
+    $updateScriptContent = (Invoke-WebRequest "$baseUrl/update.ps1" -UseBasicParsing).Content
+    [System.IO.File]::WriteAllText("$monitorDir\update.ps1", $updateScriptContent)
 
     # Save new version
     [System.IO.File]::WriteAllText($versionFile, $remoteVersion)

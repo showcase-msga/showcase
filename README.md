@@ -1,4 +1,4 @@
-# Showcase NUC Monitor v1.5
+# Showcase NUC Monitor v1.6
 
 A lightweight, silent monitoring system for the AD Group Showcase NUC fleet. Each NUC automatically captures a screenshot every hour between 8:30am and 5:00pm and uploads it to a shared Google Drive folder for remote visual verification.
 
@@ -29,10 +29,9 @@ The Showcase NUC fleet runs Chrome kiosk displays across display suites national
 The NUC Monitor solves this by:
 
 - Running silently in the background on each NUC with zero user-facing popups or notifications
-- Taking a screenshot every 30 minutes from 8:30am to 5:00pm automatically, with a random 0-10 minute delay on each trigger to spread fleet load
+- Taking a screenshot every hour from 8:30am to 5:00pm automatically
 - Capturing the full display at native resolution using DPI-aware capture — works on all display types including LEDs, projectors and standard TVs
 - Running in the logged-in user's interactive session so the actual visible kiosk screen is always captured
-- Embedding a black header bar on each screenshot showing the NUC ID, timestamp, and a list of visible windows for quick diagnostic context
 - Uploading each screenshot to a central Google Drive folder named by NUC and timestamp
 - Automatically cleaning up screenshots older than 7 days to keep the folder manageable
 
@@ -438,13 +437,20 @@ Run `reset.bat` and reinstall with the correct URL.
 
 ## Changelog
 
+### v1.6 — April 2026
+- Replaced the broken `Set-ScheduledTask` reconciliation block in `update.ps1` with a full task re-registration via XML
+- The screenshot task is now unregistered and re-registered with `<RandomDelay>PT10M</RandomDelay>` baked into the XML on every nightly run, only if the delay isn't already PT10M
+- Added explicit `-ErrorAction Stop` and post-registration verification so silent failures stop being invisible
+- Fleet-wide self-healing: any NUC where v1.5's reconciliation silently failed will now correctly apply the random delay at the next 2am SYSTEM-context update
+- `update.ps1` now self-refreshes when a version mismatch is detected, so future bug fixes to the updater itself can deploy via auto-update without requiring a manual reinstall
+- **One-time bootstrap added to `monitor.ps1`** to work around the v1.5 architectural hole: v1.5 update.ps1 doesn't download a new update.ps1, so v1.6's update.ps1 changes can't deploy via the normal path. The bootstrap fires once from monitor.ps1 (which IS auto-deployed via v1.5), downloads v1.6 update.ps1 directly from GitHub, then drops a marker file (`v16-bootstrap-done.txt`) to prevent re-runs. Safe to remove in v1.7+ once fleet is confirmed on v1.6.
+
 ### v1.5 — April 2026
-- Added 10-minute random delay to screenshot scheduled task, spreading fleet uploads across a 10-minute window to eliminate Apps Script concurrency rejections during peak bursts
-- `update.ps1` now reconciles the random delay on every run, so existing NUCs pick up the fix at the next nightly auto-update without needing reinstall
-- `monitor.ps1` now prepends a black header bar to every screenshot showing NUC ID, timestamp, and the list of visible windows (process name + window title) for quick diagnostic context
+- Added 10-minute random delay to screenshot scheduled task to spread fleet uploads and eliminate Apps Script concurrency rejections during peak bursts
+- `monitor.ps1` now prepends a black header bar to every screenshot showing NUC ID, timestamp, and the list of visible windows
 - `install.ps1` task XML updated with `<RandomDelay>PT10M</RandomDelay>` for new installs
-- Apps Script simplified: Archive folder logic removed, Dashboard folder now the single source of truth (latest screenshot per NUC)
-- Documentation updated to reflect 30-minute cadence (was incorrectly documented as hourly in earlier versions)
+- Apps Script simplified: Archive folder logic removed, Dashboard folder is now the single source of truth (latest screenshot per NUC)
+- Documentation updated to reflect 30-minute cadence
 
 ### v1.4 — April 2026
 - Added `update.ps1` — silent auto-updater runs daily at 2am
