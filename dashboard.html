@@ -956,9 +956,8 @@
   <!-- CLIENTS VIEW -->
   <div id="clientsView" class="hidden">
     <div class="clients-help">
-      Projects shown here come from NUC assignments on the NUCs tab. Set a friendly <strong>display name</strong>
-      (used in the email subject and body), add a primary contact (the person we address in the email), and any
-      additional people to CC. Use commas to separate multiple CC emails. Changes save automatically.
+      One row per project. Add a primary contact (the person we address in the email) and any additional people to CC.
+      Use commas to separate multiple CC emails. Changes save automatically. The project name is used in the email subject and body as-is.
     </div>
     <div id="clientsContent">
       <div class="loading-state">
@@ -1355,7 +1354,7 @@ async function createDrafts() {
     showToast('error', 'Setup required', 'NOTIFICATIONS_URL is not configured in dashboard.html.');
     return;
   }
-  const projects = getSelectedProjects().map(d => ({ development: d }));
+  const projects = getSelectedProjects().map(p => ({ project: p }));
   if (!projects.length) return;
 
   const btn = document.getElementById('createDraftsBtn');
@@ -1373,7 +1372,7 @@ async function createDrafts() {
 
     let bodyHtml = `<strong>${data.created}</strong> draft${data.created === 1 ? '' : 's'} created in Gmail. Open the shared inbox to review and send.`;
     if (data.skipped && data.skipped.length) {
-      bodyHtml += `<ul>${data.skipped.map(s => `<li>${s.development} — ${s.reason}</li>`).join('')}</ul>`;
+      bodyHtml += `<ul>${data.skipped.map(s => `<li>${s.project} — ${s.reason}</li>`).join('')}</ul>`;
     }
     showToast('success', 'Drafts ready', bodyHtml);
     selectedIds.clear();
@@ -1578,8 +1577,7 @@ function renderClientsTable() {
   let html = `<table class="clients-table">
     <thead>
       <tr>
-        <th>Development (auto)</th>
-        <th>Display name</th>
+        <th>Project</th>
         <th>Primary name</th>
         <th>Primary email</th>
         <th>CC emails (comma separated)</th>
@@ -1588,15 +1586,14 @@ function renderClientsTable() {
     </thead>
     <tbody>`;
 
-  projects.forEach(dev => {
-    const c = clientsData[dev] || {};
-    html += `<tr data-dev="${dev}">
-      <td class="dev-cell">${dev}</td>
-      <td><input class="client-input" data-field="displayName"  value="${escapeAttr(c.displayName  || '')}" placeholder="e.g. The Walden"></td>
+  projects.forEach(project => {
+    const c = clientsData[project] || {};
+    html += `<tr data-project="${escapeAttr(project)}">
+      <td class="dev-cell">${escapeAttr(project)}</td>
       <td><input class="client-input" data-field="primaryName"  value="${escapeAttr(c.primaryName  || '')}" placeholder="e.g. Sarah Lee"></td>
       <td><input class="client-input" data-field="primaryEmail" value="${escapeAttr(c.primaryEmail || '')}" placeholder="sarah@example.com"></td>
       <td><input class="client-input" data-field="ccEmails"     value="${escapeAttr(c.ccEmails     || '')}" placeholder="another@example.com, third@example.com"></td>
-      <td><span class="save-status" data-dev-status="${dev}"></span></td>
+      <td><span class="save-status" data-project-status="${escapeAttr(project)}"></span></td>
     </tr>`;
   });
 
@@ -1607,10 +1604,10 @@ function renderClientsTable() {
   el.querySelectorAll('input.client-input').forEach(input => {
     input.addEventListener('input', () => {
       const tr = input.closest('tr');
-      const dev = tr.dataset.dev;
+      const project = tr.dataset.project;
       const fields = {};
       tr.querySelectorAll('input.client-input').forEach(i => fields[i.dataset.field] = i.value);
-      scheduleSave(dev, fields);
+      scheduleSave(project, fields);
     });
   });
 }
@@ -1619,33 +1616,33 @@ function escapeAttr(s) {
   return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-function setSaveStatus(dev, state, text) {
-  const el = document.querySelector(`[data-dev-status="${CSS.escape(dev)}"]`);
+function setSaveStatus(project, state, text) {
+  const el = document.querySelector(`[data-project-status="${CSS.escape(project)}"]`);
   if (!el) return;
   el.className = 'save-status ' + (state || '');
   el.textContent = text || '';
 }
 
-function scheduleSave(dev, fields) {
-  setSaveStatus(dev, 'saving', 'Saving...');
-  clearTimeout(clientSaveTimers[dev]);
-  clientSaveTimers[dev] = setTimeout(() => saveClient(dev, fields), 700);
+function scheduleSave(project, fields) {
+  setSaveStatus(project, 'saving', 'Saving...');
+  clearTimeout(clientSaveTimers[project]);
+  clientSaveTimers[project] = setTimeout(() => saveClient(project, fields), 700);
 }
 
-async function saveClient(dev, fields) {
+async function saveClient(project, fields) {
   try {
     const res = await fetch(NOTIFICATIONS_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'updateClient', development: dev, ...fields })
+      body: JSON.stringify({ action: 'updateClient', project: project, ...fields })
     });
     const data = await res.json();
     if (data.status !== 'success') throw new Error(data.message || 'Save failed');
-    clientsData[dev] = { development: dev, ...fields };
-    setSaveStatus(dev, 'saved', 'Saved');
-    setTimeout(() => setSaveStatus(dev, '', ''), 1800);
+    clientsData[project] = { project: project, ...fields };
+    setSaveStatus(project, 'saved', 'Saved');
+    setTimeout(() => setSaveStatus(project, '', ''), 1800);
   } catch (e) {
-    setSaveStatus(dev, 'error', 'Error');
+    setSaveStatus(project, 'error', 'Error');
   }
 }
 
