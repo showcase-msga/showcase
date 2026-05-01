@@ -887,8 +887,8 @@
   <div class="toolbar">
     <div class="tabs">
       <button class="tab active" data-tab="dashboard" onclick="switchTab('dashboard')">Dashboard</button>
-      <button class="tab" data-tab="nucs" onclick="switchTab('nucs')">NUCs</button>
-      <button class="tab" data-tab="clients" onclick="switchTab('clients')">Clients</button>
+      <button class="tab" data-tab="nucs" onclick="switchTab('nucs')">NUC Assignment</button>
+      <button class="tab" data-tab="clients" onclick="switchTab('clients')">Projects</button>
     </div>
     <div class="toolbar-divider" id="dashboardToolbarDivider"></div>
     <div id="dashboardToolbar" style="display:flex; align-items:center; gap:24px; flex:1;">
@@ -937,12 +937,10 @@
   <div id="nucsView" class="hidden">
     <div class="clients-help">
       Each NUC must be assigned to a project before it can be used in client notifications.
-      Type a project name (existing or new) — assignments save automatically.
-      Use <strong>Auto-assign unassigned</strong> to seed empty rows with a parser-based guess from the NUC name; you can correct any of them afterward.
+      Click in the field, start typing, and pick the matching project from the autocomplete suggestions. Assignments save automatically.
     </div>
     <div class="nucs-toolbar">
       <input type="text" class="nucs-search" id="nucsSearch" placeholder="Search NUCs...">
-      <button class="auto-assign-btn" onclick="autoAssignUnassigned()">Auto-assign unassigned</button>
       <div class="nucs-summary" id="nucsSummary">—</div>
     </div>
     <div id="nucsContent">
@@ -962,7 +960,7 @@
     <div id="clientsContent">
       <div class="loading-state">
         <div class="loading-ring"></div>
-        <div class="loading-text">Loading clients</div>
+        <div class="loading-text">Loading projects</div>
       </div>
     </div>
   </div>
@@ -1431,7 +1429,6 @@ function renderNucsTab() {
     <thead>
       <tr>
         <th>NUC</th>
-        <th>Parser suggestion</th>
         <th>Assigned project</th>
         <th></th>
       </tr>
@@ -1439,12 +1436,10 @@ function renderNucsTab() {
     <tbody>`;
 
   rows.forEach(f => {
-    const suggestion = extractDevelopment(f.name);
-    const current    = assignmentsData[f.nucKey] || '';
+    const current = assignmentsData[f.nucKey] || '';
     html += `<tr data-nuc="${escapeAttr(f.nucKey)}">
       <td class="dev-cell">${escapeAttr(f.nucKey)}</td>
-      <td style="color: var(--text3); font-size: 12px; padding: 12px 8px;">${escapeAttr(suggestion)}</td>
-      <td><input class="client-input nuc-project-input" list="${datalistId}" value="${escapeAttr(current)}" placeholder="${escapeAttr(suggestion)}"></td>
+      <td><input class="client-input nuc-project-input" list="${datalistId}" value="${escapeAttr(current)}" placeholder="Start typing to search projects..."></td>
       <td><span class="save-status" data-nuc-status="${escapeAttr(f.nucKey)}"></span></td>
     </tr>`;
   });
@@ -1536,7 +1531,7 @@ async function autoAssignUnassigned() {
 // =============== CLIENTS TAB ===============
 async function loadClients() {
   const el = document.getElementById('clientsContent');
-  el.innerHTML = '<div class="loading-state"><div class="loading-ring"></div><div class="loading-text">Loading clients</div></div>';
+  el.innerHTML = '<div class="loading-state"><div class="loading-ring"></div><div class="loading-text">Loading projects</div></div>';
 
   if (NOTIFICATIONS_URL.startsWith('PASTE_')) {
     el.innerHTML = '<div class="error-state">NOTIFICATIONS_URL is not configured in dashboard.html.</div>';
