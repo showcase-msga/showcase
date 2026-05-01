@@ -498,6 +498,59 @@
   .state-qld { color: var(--qld); background: rgba(160,132,92,0.1); }
   .state-other { color: var(--text3); background: rgba(100,100,100,0.1); }
 
+  /* NUCS TAB */
+  .nucs-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .nucs-search {
+    flex: 1;
+    max-width: 320px;
+    background: transparent;
+    border: 1px solid var(--border-light);
+    padding: 8px 12px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 300;
+    outline: none;
+    border-radius: 2px;
+    transition: border-color 0.2s;
+  }
+
+  .nucs-search:focus { border-color: var(--accent); }
+  .nucs-search::placeholder { color: var(--text3); }
+
+  .auto-assign-btn {
+    padding: 8px 18px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    border-radius: 2px;
+    color: var(--accent);
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .auto-assign-btn:hover { background: var(--accent-dim); }
+
+  .nucs-summary {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text3);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .nucs-summary strong { color: var(--accent); font-weight: 500; }
+
   /* CLIENTS TAB */
   .clients-table {
     width: 100%;
@@ -834,6 +887,7 @@
   <div class="toolbar">
     <div class="tabs">
       <button class="tab active" data-tab="dashboard" onclick="switchTab('dashboard')">Dashboard</button>
+      <button class="tab" data-tab="nucs" onclick="switchTab('nucs')">NUCs</button>
       <button class="tab" data-tab="clients" onclick="switchTab('clients')">Clients</button>
     </div>
     <div class="toolbar-divider" id="dashboardToolbarDivider"></div>
@@ -879,11 +933,32 @@
     </div>
   </div>
 
+  <!-- NUCS VIEW -->
+  <div id="nucsView" class="hidden">
+    <div class="clients-help">
+      Each NUC must be assigned to a project before it can be used in client notifications.
+      Type a project name (existing or new) — assignments save automatically.
+      Use <strong>Auto-assign unassigned</strong> to seed empty rows with a parser-based guess from the NUC name; you can correct any of them afterward.
+    </div>
+    <div class="nucs-toolbar">
+      <input type="text" class="nucs-search" id="nucsSearch" placeholder="Search NUCs...">
+      <button class="auto-assign-btn" onclick="autoAssignUnassigned()">Auto-assign unassigned</button>
+      <div class="nucs-summary" id="nucsSummary">—</div>
+    </div>
+    <div id="nucsContent">
+      <div class="loading-state">
+        <div class="loading-ring"></div>
+        <div class="loading-text">Loading NUCs</div>
+      </div>
+    </div>
+  </div>
+
   <!-- CLIENTS VIEW -->
   <div id="clientsView" class="hidden">
     <div class="clients-help">
-      Projects are auto-detected from connected NUCs. Add a primary contact (the person we address in the email)
-      and any additional people to CC. Use commas to separate multiple CC emails. Changes save automatically.
+      Projects shown here come from NUC assignments on the NUCs tab. Set a friendly <strong>display name</strong>
+      (used in the email subject and body), add a primary contact (the person we address in the email), and any
+      additional people to CC. Use commas to separate multiple CC emails. Changes save automatically.
     </div>
     <div id="clientsContent">
       <div class="loading-state">
@@ -933,16 +1008,19 @@ const FOLDER_ID          = '1KaH19gjY4Kln-NHhqkLPD_tMj85tTt2m';
 const NOTIFICATIONS_URL  = 'https://script.google.com/macros/s/AKfycbzi8xzA3l0UZ4ii6rJWnxuwbdUhYLCVmA5tAG6-Rygu-QcydfXaNchfqVJ8d_7I8wSX/exec';
 
 // =============== STATE ===============
-let allFiles       = [];
-let filteredFiles  = [];
-let currentIndex   = 0;
-let activeState    = 'all';
-let searchQuery    = '';
-let currentTab     = 'dashboard';
-let notifyMode     = false;
-let selectedIds    = new Set();   // NUC file IDs selected for drafting
-let clientsData    = {};          // { development: { primaryName, primaryEmail, ccEmails } }
-let saveTimers     = {};          // debounce timers for client edits
+let allFiles        = [];
+let filteredFiles   = [];
+let currentIndex    = 0;
+let activeState     = 'all';
+let searchQuery     = '';
+let currentTab      = 'dashboard';
+let notifyMode      = false;
+let selectedIds     = new Set();   // NUC file IDs selected for drafting
+let clientsData     = {};          // { project: { displayName, primaryName, primaryEmail, ccEmails } }
+let assignmentsData = {};          // { nucKey: 'ProjectName' }   ← source of truth for project membership
+let assignmentsLoaded = false;
+let clientSaveTimers = {};
+let nucSaveTimers    = {};
 
 // =============== STATE / NAME HELPERS ===============
 function getStateFromName(name) {
@@ -961,17 +1039,57 @@ function getStateClass(s) {
   return { '2': 'state-nsw', '3': 'state-vic', '4': 'state-qld' }[s] || 'state-other';
 }
 
+// Stable NUC identifier — the filename minus the date suffix
+function getNucKey(filename) {
+  return filename.replace(/ - \d{4}-\d{2}-\d{2} \d{2}-\d{2}\.jpg$/, '');
+}
+
+// Project for a given file — pulled from manual assignments only.
+// Returns empty string if the NUC is not yet assigned to a project.
+function effectiveProject(f) {
+  const key = getNucKey(f.name);
+  return (assignmentsData[key] || '').trim();
+}
+
 // Extract development name (the 3rd path segment of the original NUC ID)
-// from a filename like "2-ALAND-THE-WALDEN-55 - 2026-04-15 08-30.jpg"
-// Heuristic: drop state (first segment) and screen-type (last segment),
-// drop client (next), join the rest with hyphens.
+// from a filename like "2-ALAND-THE-WALDEN-55 - 2026-04-15 08-30.jpg".
+//
+// Handles the messier real-world cases too:
+//   "3-OTELLO-FLOWE BOWDEN (SA) - ..."   → "FLOWE BOWDEN"
+//   "2-STARGATE-SIGNATURE (3D) - ..."    → "SIGNATURE"
+//   "3-ABADEEN-GRANDVIEW [LED] - ..."    → "GRANDVIEW"
+//   "4-CADRE-SOLHAVEN (NSW) - ..."       → "SOLHAVEN"
+//   "2-MORAN-INDIGO - ..."               → "INDIGO"        (no screen segment)
+//   "4-SHERPA-SYMPHONY-68 - ..."         → "SYMPHONY"      (numeric screen)
+//   "ALEX - ..."                          → "ALEX"          (single token, no convention)
 function extractDevelopment(filename) {
-  const stripped = filename.replace(/ - \d{4}-\d{2}-\d{2} \d{2}-\d{2}\.jpg$/, '');
-  const parts = stripped.split('-');
-  if (parts.length < 4) return stripped;
-  const middle = parts.slice(1, -1); // drop state + screen-type
-  if (middle.length < 2) return middle.join('-');
-  return middle.slice(1).join('-');  // drop client → development remains
+  // 1. Strip the date suffix: " - 2026-04-15 08-30.jpg"
+  let s = filename.replace(/ - \d{4}-\d{2}-\d{2} \d{2}-\d{2}\.jpg$/, '');
+
+  // 2. Repeatedly strip trailing screen-type indicators in (parens) or [brackets]
+  let prev;
+  do {
+    prev = s;
+    s = s.replace(/\s*\([^)]*\)\s*$/, '').replace(/\s*\[[^\]]*\]\s*$/, '').trim();
+  } while (s !== prev);
+
+  // 3. Split on hyphens
+  const parts = s.split('-');
+
+  // 4. Drop leading state prefix if it's purely numeric (1-4) or a single letter "X"
+  let start = 0;
+  if (parts.length > 1 && /^(\d+|X)$/i.test(parts[0])) start = 1;
+
+  // 5. Drop trailing numeric screen-type (e.g. "55", "68")
+  let end = parts.length;
+  if (end - start > 1 && /^\d+$/.test(parts[end - 1])) end = end - 1;
+
+  const remaining = parts.slice(start, end);
+  if (remaining.length === 0) return s;
+  if (remaining.length === 1) return remaining[0];
+
+  // 6. First remaining segment is client; the rest joined with "-" is the development
+  return remaining.slice(1).join('-');
 }
 
 function getLastExpectedTime() {
@@ -1024,20 +1142,27 @@ function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
 
   const dashView    = document.getElementById('dashboardView');
+  const nucsView    = document.getElementById('nucsView');
   const clientsView = document.getElementById('clientsView');
   const dashTb      = document.getElementById('dashboardToolbar');
   const dashTbDiv   = document.getElementById('dashboardToolbarDivider');
 
+  // Hide all
+  dashView.classList.add('hidden');
+  nucsView.classList.add('hidden');
+  clientsView.classList.add('hidden');
+  dashTb.style.display = 'none';
+  dashTbDiv.style.display = 'none';
+
   if (name === 'dashboard') {
     dashView.classList.remove('hidden');
-    clientsView.classList.add('hidden');
     dashTb.style.display = 'flex';
     dashTbDiv.style.display = '';
-  } else {
-    dashView.classList.add('hidden');
+  } else if (name === 'nucs') {
+    nucsView.classList.remove('hidden');
+    renderNucsTab();
+  } else if (name === 'clients') {
     clientsView.classList.remove('hidden');
-    dashTb.style.display = 'none';
-    dashTbDiv.style.display = 'none';
     loadClients();
   }
 }
@@ -1052,9 +1177,9 @@ async function loadScreenshots() {
     if (data.error) { showError(data.error.message); return; }
     allFiles = (data.files || []).map(f => ({
       ...f,
-      state: getStateFromName(f.name),
+      state:   getStateFromName(f.name),
       offline: isOffline(f.modifiedTime),
-      development: extractDevelopment(f.name)
+      nucKey:  getNucKey(f.name)
     }));
     updateStats();
     applyFilters();
@@ -1167,6 +1292,12 @@ function onCardClick(e, idx) {
   const f = filteredFiles[idx];
   if (!f) return;
   if (notifyMode && f.offline) {
+    if (!effectiveProject(f)) {
+      e.preventDefault();
+      e.stopPropagation();
+      showToast('error', 'Unassigned NUC', 'Assign this NUC to a project on the NUCs tab before notifying.');
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     if (selectedIds.has(f.id)) selectedIds.delete(f.id);
@@ -1195,7 +1326,10 @@ function getSelectedProjects() {
   const projects = new Set();
   selectedIds.forEach(id => {
     const f = allFiles.find(x => x.id === id);
-    if (f) projects.add(f.development);
+    if (f) {
+      const proj = effectiveProject(f);
+      if (proj) projects.add(proj);
+    }
   });
   return [...projects];
 }
@@ -1252,6 +1386,154 @@ async function createDrafts() {
   }
 }
 
+// =============== ASSIGNMENTS / NUCS TAB ===============
+async function loadAssignments() {
+  if (NOTIFICATIONS_URL.startsWith('PASTE_')) return;
+  try {
+    const res = await fetch(NOTIFICATIONS_URL + '?action=getAssignments');
+    const data = await res.json();
+    if (data.status === 'success') {
+      assignmentsData = data.assignments || {};
+      assignmentsLoaded = true;
+      // Re-render whatever is currently visible so projects resolve correctly
+      if (currentTab === 'dashboard') renderGrid();
+      if (currentTab === 'nucs')      renderNucsTab();
+    }
+  } catch (e) {
+    console.error('Could not load assignments:', e);
+  }
+}
+
+let nucsSearchQuery = '';
+
+function renderNucsTab() {
+  const el = document.getElementById('nucsContent');
+
+  if (!allFiles.length) {
+    el.innerHTML = '<div class="empty-state">No NUCs detected yet — wait for the dashboard to load first.</div>';
+    return;
+  }
+
+  const knownProjects = getAllProjects();
+  const datalistId = 'projectsList';
+
+  const rows = allFiles
+    .slice()
+    .sort((a, b) => a.nucKey.localeCompare(b.nucKey))
+    .filter(f => !nucsSearchQuery || f.nucKey.toLowerCase().includes(nucsSearchQuery.toLowerCase()));
+
+  let assigned = 0, unassigned = 0;
+  allFiles.forEach(f => { if (effectiveProject(f)) assigned++; else unassigned++; });
+  document.getElementById('nucsSummary').innerHTML =
+    `<strong>${assigned}</strong> assigned · <strong>${unassigned}</strong> unassigned`;
+
+  let html = `<datalist id="${datalistId}">${knownProjects.map(p => `<option value="${escapeAttr(p)}">`).join('')}</datalist>`;
+  html += `<table class="clients-table">
+    <thead>
+      <tr>
+        <th>NUC</th>
+        <th>Parser suggestion</th>
+        <th>Assigned project</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+  rows.forEach(f => {
+    const suggestion = extractDevelopment(f.name);
+    const current    = assignmentsData[f.nucKey] || '';
+    html += `<tr data-nuc="${escapeAttr(f.nucKey)}">
+      <td class="dev-cell">${escapeAttr(f.nucKey)}</td>
+      <td style="color: var(--text3); font-size: 12px; padding: 12px 8px;">${escapeAttr(suggestion)}</td>
+      <td><input class="client-input nuc-project-input" list="${datalistId}" value="${escapeAttr(current)}" placeholder="${escapeAttr(suggestion)}"></td>
+      <td><span class="save-status" data-nuc-status="${escapeAttr(f.nucKey)}"></span></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+
+  el.querySelectorAll('input.nuc-project-input').forEach(input => {
+    input.addEventListener('input', () => {
+      const tr = input.closest('tr');
+      const nuc = tr.dataset.nuc;
+      scheduleNucSave(nuc, input.value);
+    });
+  });
+}
+
+function setNucSaveStatus(nuc, state, text) {
+  const el = document.querySelector(`[data-nuc-status="${CSS.escape(nuc)}"]`);
+  if (!el) return;
+  el.className = 'save-status ' + (state || '');
+  el.textContent = text || '';
+}
+
+function scheduleNucSave(nuc, project) {
+  setNucSaveStatus(nuc, 'saving', 'Saving...');
+  clearTimeout(nucSaveTimers[nuc]);
+  nucSaveTimers[nuc] = setTimeout(() => saveNucAssignment(nuc, project), 700);
+}
+
+async function saveNucAssignment(nuc, project) {
+  try {
+    const res = await fetch(NOTIFICATIONS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'updateAssignment', nucName: nuc, project: project })
+    });
+    const data = await res.json();
+    if (data.status !== 'success') throw new Error(data.message || 'Save failed');
+    if (project.trim()) assignmentsData[nuc] = project.trim();
+    else delete assignmentsData[nuc];
+    setNucSaveStatus(nuc, 'saved', 'Saved');
+    setTimeout(() => setNucSaveStatus(nuc, '', ''), 1500);
+    // Refresh the summary count
+    let assigned = 0, unassigned = 0;
+    allFiles.forEach(f => { if (effectiveProject(f)) assigned++; else unassigned++; });
+    document.getElementById('nucsSummary').innerHTML =
+      `<strong>${assigned}</strong> assigned · <strong>${unassigned}</strong> unassigned`;
+  } catch (e) {
+    setNucSaveStatus(nuc, 'error', 'Error');
+  }
+}
+
+async function autoAssignUnassigned() {
+  const btn = document.querySelector('.auto-assign-btn');
+  const targets = allFiles.filter(f => !effectiveProject(f));
+  if (!targets.length) {
+    showToast('success', 'Nothing to do', 'Every NUC already has a project assigned.');
+    return;
+  }
+  if (!confirm(`Auto-assign ${targets.length} unassigned NUC${targets.length === 1 ? '' : 's'} using the parser suggestion?`)) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Assigning...';
+
+  let ok = 0, failed = 0;
+  for (const f of targets) {
+    const guess = extractDevelopment(f.name);
+    if (!guess) { failed++; continue; }
+    try {
+      const res = await fetch(NOTIFICATIONS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'updateAssignment', nucName: f.nucKey, project: guess })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        assignmentsData[f.nucKey] = guess;
+        ok++;
+      } else failed++;
+    } catch (e) { failed++; }
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Auto-assign unassigned';
+  showToast('success', 'Auto-assignment complete',
+    `Assigned <strong>${ok}</strong> NUC${ok === 1 ? '' : 's'}` + (failed ? ` · ${failed} failed` : '') + '. Review and correct any wrong matches.');
+  renderNucsTab();
+}
+
 // =============== CLIENTS TAB ===============
 async function loadClients() {
   const el = document.getElementById('clientsContent');
@@ -1263,19 +1545,24 @@ async function loadClients() {
   }
 
   try {
-    const res = await fetch(NOTIFICATIONS_URL + '?action=getClients');
+    const res = await fetch(NOTIFICATIONS_URL + '?action=getAll');
     const data = await res.json();
     if (data.status !== 'success') throw new Error(data.message || 'Unknown error');
-    clientsData = data.clients || {};
+    clientsData     = data.clients     || {};
+    assignmentsData = data.assignments || assignmentsData;
+    assignmentsLoaded = true;
     renderClientsTable();
   } catch (e) {
     el.innerHTML = `<div class="error-state">Error: ${e.message}</div>`;
   }
 }
 
+// Projects in the system = distinct projects that NUCs have been assigned to,
+// plus any projects that have client data already saved (so contacts aren't orphaned).
 function getAllProjects() {
   const projects = new Set();
-  allFiles.forEach(f => { if (f.development) projects.add(f.development); });
+  Object.values(assignmentsData).forEach(p => { if (p) projects.add(p); });
+  Object.keys(clientsData).forEach(p => projects.add(p));
   return [...projects].sort();
 }
 
@@ -1284,14 +1571,15 @@ function renderClientsTable() {
   const projects = getAllProjects();
 
   if (!projects.length) {
-    el.innerHTML = '<div class="empty-state">No projects detected yet — wait for the dashboard to load NUCs first.</div>';
+    el.innerHTML = '<div class="empty-state">No projects yet — assign NUCs to projects on the NUCs tab to get started.</div>';
     return;
   }
 
   let html = `<table class="clients-table">
     <thead>
       <tr>
-        <th>Development</th>
+        <th>Development (auto)</th>
+        <th>Display name</th>
         <th>Primary name</th>
         <th>Primary email</th>
         <th>CC emails (comma separated)</th>
@@ -1304,6 +1592,7 @@ function renderClientsTable() {
     const c = clientsData[dev] || {};
     html += `<tr data-dev="${dev}">
       <td class="dev-cell">${dev}</td>
+      <td><input class="client-input" data-field="displayName"  value="${escapeAttr(c.displayName  || '')}" placeholder="e.g. The Walden"></td>
       <td><input class="client-input" data-field="primaryName"  value="${escapeAttr(c.primaryName  || '')}" placeholder="e.g. Sarah Lee"></td>
       <td><input class="client-input" data-field="primaryEmail" value="${escapeAttr(c.primaryEmail || '')}" placeholder="sarah@example.com"></td>
       <td><input class="client-input" data-field="ccEmails"     value="${escapeAttr(c.ccEmails     || '')}" placeholder="another@example.com, third@example.com"></td>
@@ -1339,8 +1628,8 @@ function setSaveStatus(dev, state, text) {
 
 function scheduleSave(dev, fields) {
   setSaveStatus(dev, 'saving', 'Saving...');
-  clearTimeout(saveTimers[dev]);
-  saveTimers[dev] = setTimeout(() => saveClient(dev, fields), 700);
+  clearTimeout(clientSaveTimers[dev]);
+  clientSaveTimers[dev] = setTimeout(() => saveClient(dev, fields), 700);
 }
 
 async function saveClient(dev, fields) {
@@ -1421,8 +1710,17 @@ function resetDashboard() {
   applyFilters();
 }
 
+// NUCs tab search wiring
+document.addEventListener('input', e => {
+  if (e.target && e.target.id === 'nucsSearch') {
+    nucsSearchQuery = e.target.value;
+    renderNucsTab();
+  }
+});
+
 // =============== INIT ===============
 setInterval(loadScreenshots, 5 * 60 * 1000);
+loadAssignments();
 loadScreenshots();
 </script>
 </body>
