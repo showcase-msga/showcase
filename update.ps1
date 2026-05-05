@@ -1,9 +1,11 @@
 # ============================================================
-# Showcase NUC Monitor - update.ps1 (v1.6)
+# Showcase NUC Monitor - update.ps1 (v1.7)
 # Runs daily at 2am via scheduled task
 # v1.6: Replaced broken Set-ScheduledTask reconciliation with
 #       full task re-registration via XML. Guarantees the
 #       random delay is applied on every NUC, fleet-wide.
+# v1.7: Adds Defender exclusion for monitor dir fleet-wide.
+#       Fixes AMSI blocking monitor.ps1 on manually triggered runs.
 # ============================================================
 
 $ErrorActionPreference = "SilentlyContinue"
@@ -17,6 +19,19 @@ $timestamp   = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 function Write-Log($message) {
     $entry = "$timestamp | $message"
     Add-Content -Path $logFile -Value $entry -ErrorAction SilentlyContinue
+}
+
+# ---- v1.7: Ensure Defender exclusion is present fleet-wide ----
+# Fixes AMSI blocking monitor.ps1 when run manually or on machines
+# where install.ps1 did not apply the exclusion.
+try {
+    $existingExclusions = (Get-MpPreference).ExclusionPath
+    if ($existingExclusions -notcontains $monitorDir) {
+        Add-MpPreference -ExclusionPath $monitorDir -ErrorAction Stop
+        Write-Log "Defender exclusion added for $monitorDir"
+    }
+} catch {
+    Write-Log "Failed to add Defender exclusion: $($_.Exception.Message)"
 }
 
 # ---- v1.6: Re-register screenshot task with random delay baked in ----
