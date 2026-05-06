@@ -1,9 +1,18 @@
 # ============================================================
-# Showcase NUC Monitor - update.ps1 (v1.9)
+# Showcase NUC Monitor - update.ps1 (v1.10)
 # Runs daily at 2am via scheduled task (SYSTEM context)
-# v1.9: Downloads NucMonitor.exe alongside scripts.
-#       monitor.ps1 is now a thin wrapper - exe handles all work.
-#       Preserves webhook URL and NUC ID across updates.
+#
+# v1.10 changes:
+#   - Self-heals when required files are missing (regardless of version match).
+#   - Writes webhook.txt and nuc-id.txt as part of update so VBS-based
+#     scheduled task always has its config files.
+#   - Reads webhook URL and NUC ID from webhook.txt/nuc-id.txt first,
+#     falls back to parsing monitor.ps1 for older NUCs.
+#
+# v1.9 changes (kept):
+#   - Downloads NucMonitor.exe alongside scripts.
+#   - monitor.ps1 is a thin wrapper - exe handles all work.
+#   - Preserves webhook URL and NUC ID across updates.
 # ============================================================
 
 $ErrorActionPreference = "SilentlyContinue"
@@ -13,6 +22,17 @@ $logFile     = "$monitorDir\update.log"
 $versionFile = "$monitorDir\version.txt"
 $baseUrl     = "https://raw.githubusercontent.com/showcase-msga/showcase/main"
 $timestamp   = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+
+# Files that must exist on every NUC for the monitor to function.
+# If any are missing, force a full re-download even if versions match.
+$requiredFiles = @(
+    "NucMonitor.exe",
+    "monitor.ps1",
+    "run-silent.vbs",
+    "update.ps1",
+    "webhook.txt",
+    "nuc-id.txt"
+)
 
 function Write-Log($message) {
     $entry = "$timestamp | $message"
@@ -104,24 +124,59 @@ if (Test-Path $versionFile) {
     $localVersion = (Get-Content $versionFile -Raw).Trim()
 }
 
-# ---- Compare versions ----
-if ($remoteVersion -eq $localVersion) {
-    Write-Log "Version $localVersion | No update required"
+# ---- Check for missing required files ----
+$missingFiles = @()
+foreach ($file in $requiredFiles) {
+    if (-not (Test-Path "$monitorDir\$file")) {
+        $missingFiles += $file
+    }
+}
+
+# ---- Decide whether to update ----
+$versionMismatch = $remoteVersion -ne $localVersion
+$filesMissing    = $missingFiles.Count -gt 0
+
+if (-not $versionMismatch -and -not $filesMissing) {
+    Write-Log "Version $localVersion | All files present | No update required"
     exit
 }
 
-# ---- Read existing webhook URL and NUC ID from current monitor.ps1 ----
-$existingMonitor = Get-Content "$monitorDir\monitor.ps1" -Raw -ErrorAction SilentlyContinue
-$webhookMatch    = [regex]::Match($existingMonitor, '\$webhookUrl\s*=\s*"([^"]+)"')
-$nucMatch        = [regex]::Match($existingMonitor, '\$nucName\s*=\s*"([^"]+)"')
-
-if (-not $webhookMatch.Success -or -not $nucMatch.Success) {
-    Write-Log "Version $localVersion -> $remoteVersion | Failed to read webhook/NUC ID from existing monitor.ps1 - aborting update"
-    exit
+if ($filesMissing) {
+    Write-Log "Self-heal triggered | Missing files: $($missingFiles -join ', ')"
 }
 
-$webhook = $webhookMatch.Groups[1].Value
-$nucId   = $nucMatch.Groups[1].Value
+# ---- Read existing webhook URL and NUC ID ----
+# Prefer webhook.txt and nuc-id.txt (Defender-safe plain text).
+# Fall back to parsing monitor.ps1 for older NUCs that haven't written
+# the txt files yet.
+$webhook = $null
+$nucId   = $null
+
+if (Test-Path "$monitorDir\webhook.txt") {
+    $webhook = (Get-Content "$monitorDir\webhook.txt" -Raw -ErrorAction SilentlyContinue).Trim()
+}
+if (Test-Path "$monitorDir\nuc-id.txt") {
+    $nucId = (Get-Content "$monitorDir\nuc-id.txt" -Raw -ErrorAction SilentlyContinue).Trim()
+}
+
+# Fall back to parsing monitor.ps1 if either txt file was missing or empty
+if ([string]::IsNullOrWhiteSpace($webhook) -or [string]::IsNullOrWhiteSpace($nucId)) {
+    $existingMonitor = Get-Content "$monitorDir\monitor.ps1" -Raw -ErrorAction SilentlyContinue
+    $webhookMatch    = [regex]::Match($existingMonitor, '\$webhookUrl\s*=\s*"([^"]+)"')
+    $nucMatch        = [regex]::Match($existingMonitor, '\$nucName\s*=\s*"([^"]+)"')
+
+    if ([string]::IsNullOrWhiteSpace($webhook) -and $webhookMatch.Success) {
+        $webhook = $webhookMatch.Groups[1].Value
+    }
+    if ([string]::IsNullOrWhiteSpace($nucId) -and $nucMatch.Success) {
+        $nucId = $nucMatch.Groups[1].Value
+    }
+}
+
+if ([string]::IsNullOrWhiteSpace($webhook) -or [string]::IsNullOrWhiteSpace($nucId)) {
+    Write-Log "Version $localVersion -> $remoteVersion | Failed to read webhook/NUC ID from any source - aborting update"
+    exit
+}
 
 # ---- Download and update all files ----
 try {
@@ -151,10 +206,18 @@ try {
     $updateScriptContent = (Invoke-WebRequest "$baseUrl/update.ps1" -UseBasicParsing).Content
     [System.IO.File]::WriteAllText("$monitorDir\update.ps1", $updateScriptContent)
 
+    # Always write webhook.txt and nuc-id.txt so VBS has config files
+    [System.IO.File]::WriteAllText("$monitorDir\webhook.txt", $webhook)
+    [System.IO.File]::WriteAllText("$monitorDir\nuc-id.txt",  $nucId)
+
     # Save new version
     [System.IO.File]::WriteAllText($versionFile, $remoteVersion)
 
-    Write-Log "Version $localVersion -> $remoteVersion | Updated successfully | NUC: $nucId"
+    if ($versionMismatch) {
+        Write-Log "Version $localVersion -> $remoteVersion | Updated successfully | NUC: $nucId"
+    } else {
+        Write-Log "Version $localVersion | Self-heal completed | Restored: $($missingFiles -join ', ') | NUC: $nucId"
+    }
 
 } catch {
     Write-Log "Version $localVersion -> $remoteVersion | Update failed: $($_.Exception.Message)"
