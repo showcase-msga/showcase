@@ -1,6 +1,6 @@
-# Showcase NUC Monitor v1.6
+# Showcase NUC Monitor v1.9
 
-A lightweight, silent monitoring system for the AD Group Showcase NUC fleet. Each NUC automatically captures a screenshot every hour between 8:30am and 5:00pm and uploads it to a shared Google Drive folder for remote visual verification.
+A lightweight, silent monitoring system for the AD Group Showcase NUC fleet. Each NUC automatically captures a screenshot every 30 minutes between 8:30am and 5:00pm and uploads it to a shared Google Drive folder for remote visual verification.
 
 ---
 
@@ -12,10 +12,10 @@ A lightweight, silent monitoring system for the AD Group Showcase NUC fleet. Eac
 - [Architecture](#architecture)
 - [Apps Script Setup](#apps-script-setup)
 - [Installation](#installation)
-- [Deployment](#deployment)
+- [Testing](#testing)
+- [Auto-Update System](#auto-update-system)
 - [Adding New NUCs](#adding-new-nucs)
 - [Resetting a NUC](#resetting-a-nuc)
-- [Updating Files](#updating-files)
 - [Google Drive Structure](#google-drive-structure)
 - [Troubleshooting](#troubleshooting)
 - [Changelog](#changelog)
@@ -24,119 +24,99 @@ A lightweight, silent monitoring system for the AD Group Showcase NUC fleet. Eac
 
 ## Overview
 
-The Showcase NUC fleet runs Chrome kiosk displays across display suites nationally. Previously, checking each NUC required manually remoting in via Chrome Remote Desktop or TeamViewer one by one — a slow and unscalable process across 200+ machines.
-
-The NUC Monitor solves this by:
+The Showcase NUC fleet runs Chrome kiosk displays across display suites nationally. The NUC Monitor solves remote visibility by:
 
 - Running silently in the background on each NUC with zero user-facing popups or notifications
-- Taking a screenshot every hour from 8:30am to 5:00pm automatically
-- Capturing the full display at native resolution using DPI-aware capture — works on all display types including LEDs, projectors and standard TVs
-- Running in the logged-in user's interactive session so the actual visible kiosk screen is always captured
+- Taking a screenshot every 30 minutes from 8:30am to 5:00pm automatically
 - Uploading each screenshot to a central Google Drive folder named by NUC and timestamp
-- Automatically cleaning up screenshots older than 7 days to keep the folder manageable
-
-The result is a single Google Drive folder your team can open each morning to visually verify all NUCs at a glance, only remoting in when something looks wrong.
+- Self-updating nightly so the fleet stays current without manual intervention
+- Logging every run locally so failures are always diagnosable
 
 ---
 
 ## How It Works
 
 ```
-NUC (Task Scheduler — InteractiveToken, logged-in user session)
-    └── Triggers run-silent.vbs every hour (8:30am–5:00pm)
-            └── Launches monitor.ps1 silently (no window, no popup)
-                    └── Sets DPI awareness for accurate capture
-                    └── Reads true screen dimensions from GPU via GetDeviceCaps
+Scheduled Task (InteractiveToken — logged-in user session)
+    └── Triggers run-silent.vbs every 30 min (8:30am–5:00pm, +random 10min delay)
+            └── Reads webhook.txt and nuc-id.txt
+            └── Calls NucMonitor.exe directly (no PowerShell)
                     └── Takes full screenshot at native resolution
-                    └── Reads NUC name from nuc-id.txt
-                    └── Converts screenshot to base64 JPEG at 70% quality
+                    └── Resizes to max 1920x1080
+                    └── Encodes as JPEG (50% quality)
                     └── POSTs payload to Google Apps Script webhook
-                            └── Decodes image
+                    └── Logs result to monitor.log
+                            └── Apps Script decodes image
                             └── Deletes screenshots older than 7 days for this NUC
                             └── Saves new screenshot to Google Drive
 ```
 
+### Why NucMonitor.exe
+
+From v1.9, all screenshot and upload logic runs inside a compiled .NET 4 executable rather than a PowerShell script. Windows Defender AMSI (Antimalware Scan Interface) scans PowerShell scripts in memory and flags the combination of screen capture + base64 + HTTP POST as malware — regardless of intent. Compiled binaries are not subject to AMSI script scanning, so the exe runs cleanly on all NUCs without requiring exclusions or policy changes.
+
 ### Why InteractiveToken Matters
 
-The scheduled task runs using `InteractiveToken` which means it executes in the same desktop session as the logged-in user. This is critical because:
-
-- Running as `SYSTEM` has no desktop session — screenshots come out black
-- `InteractiveToken` sees exactly what is on screen, the same as manually running the bat file
-- The kiosk display, Chrome window and all visible content is captured correctly
+The scheduled task runs using `InteractiveToken` which means it executes in the same desktop session as the logged-in user. Running as `SYSTEM` has no desktop session — screenshots come out black. `InteractiveToken` sees exactly what is on screen.
 
 ### Schedule
 
 | Time | Screenshot |
 |------|-----------|
-| 8:30am | ✓ |
-| 9:30am | ✓ |
-| 10:30am | ✓ |
-| 11:30am | ✓ |
-| 12:30pm | ✓ |
-| 1:30pm | ✓ |
-| 2:30pm | ✓ |
-| 3:30pm | ✓ |
-| 4:30pm | ✓ |
+| 8:30am (+0-10min) | ✓ |
+| 9:00am (+0-10min) | ✓ |
+| 9:30am (+0-10min) | ✓ |
+| ... every 30 min ... | ✓ |
+| 4:30pm (+0-10min) | ✓ |
+
+The random 10-minute delay prevents all NUCs firing simultaneously and saturating the Apps Script webhook.
 
 ---
 
 ## File Breakdown
 
-### `install.ps1`
-The master installer. Runs in memory via the install command — never stored on the NUC itself. It:
-- Sets PowerShell execution policy to Bypass
-- Creates `C:\ProgramData\showcase-monitor\`
-- Downloads `monitor.ps1` from GitHub and injects the webhook URL and NUC name
-- Downloads `run-silent.vbs`, `test-screenshot.bat` and `reset.bat`
-- Writes `nuc-id.txt` with the NUC name
-- Adds a Windows Defender exclusion for the monitor folder
-- Creates a **Showcase Monitor** desktop shortcut to the folder
-- Registers the Windows Scheduled Task using `InteractiveToken` so it runs in the user's desktop session
+### `NucMonitor.exe`
+Compiled .NET 4 binary. Does all the actual work: takes screenshot, resizes, encodes as JPEG, POSTs to webhook, logs result to `monitor.log`. Called by both `run-silent.vbs` (scheduled) and directly for testing. Not subject to AMSI scanning.
 
 ---
 
 ### `monitor.ps1`
-The core monitoring script. Runs silently every hour via the scheduled task. It:
-- Uses `SetProcessDPIAware` and `GetDeviceCaps` to read true GPU pixel dimensions
-- Captures the full screen at native resolution regardless of DPI scaling
-- Works correctly on all display types: LEDs, projectors, standard TVs, touchscreens
-- Compresses the screenshot to JPEG at 70% quality
-- POSTs a JSON payload (NUC name + base64 image + timestamp) to the Apps Script webhook
-- Cleans up the temporary file after sending
-
-The webhook URL and NUC name are injected at install time. The GitHub version uses placeholders (`WEBHOOK_URL_PLACEHOLDER`, `NUCID_PLACEHOLDER`).
+Thin wrapper. Writes `webhook.txt` and `nuc-id.txt` from the injected placeholders, then calls `NucMonitor.exe`. The webhook URL and NUC ID are injected at install time — GitHub version uses `WEBHOOK_URL_PLACEHOLDER` and `NUCID_PLACEHOLDER`.
 
 ---
 
 ### `run-silent.vbs`
-Launches `monitor.ps1` via PowerShell with zero visible window. Runs without the `-NonInteractive` flag so it can access the logged-in user's desktop session and capture what is actually on screen.
+Reads `webhook.txt` and `nuc-id.txt`, then calls `NucMonitor.exe` silently with no visible window. No PowerShell involved. This is what the scheduled task triggers.
+
+---
+
+### `update.ps1`
+Daily auto-updater (2am, SYSTEM context). Compares local `version.txt` against GitHub. If newer, downloads all files including `NucMonitor.exe`, re-injects webhook URL and NUC ID into `monitor.ps1`, writes `webhook.txt` and `nuc-id.txt`, and logs the result to `update.log`.
+
+---
+
+### `install.ps1`
+One-time installer. Downloads all files from GitHub, injects webhook URL and NUC ID, writes config files, registers both scheduled tasks, adds Defender exclusion, creates desktop shortcut.
 
 ---
 
 ### `test-screenshot.bat`
-Manually triggers a screenshot for testing or verification. Double-click it on the NUC. It:
-- Closes immediately (no lingering window on screen)
-- Waits 5 seconds silently in background (gives you time to navigate away)
-- Fires the screenshot silently
-- Exits cleanly
-
-Check Google Drive approximately 60 seconds after running it.
+Manually triggers a screenshot via `monitor.ps1`. Double-click on the NUC to test. Check `monitor.log` or the dashboard after running.
 
 ---
 
-### `reset.bat`
-Completely removes all monitor configurations from the NUC. Run as Administrator. It removes:
-- The `Showcase NUC Monitor` scheduled task
-- The entire `C:\ProgramData\showcase-monitor\` folder and all contents
-- The **Showcase Monitor** desktop shortcut
-- The Windows Defender exclusion
+### `uninstall.bat`
+Completely removes all monitor configuration from a NUC. Run as Administrator. Removes scheduled tasks, monitor folder, desktop shortcut, and Defender exclusion.
 
-After running, re-run the install command to start fresh.
+---
+
+### `webhook.txt`
+Plain text file containing the Google Apps Script webhook URL. Written by `install.ps1` and `monitor.ps1`. Read by `run-silent.vbs` to pass to `NucMonitor.exe`.
 
 ---
 
 ### `nuc-id.txt`
-Plain text file containing the NUC's display name. Written by `install.ps1` at install time. Used as the filename prefix in Google Drive.
+Plain text file containing the NUC's display name. Written at install time. Read by `run-silent.vbs`.
 
 Example:
 ```
@@ -145,25 +125,51 @@ Example:
 
 ---
 
+### `monitor.log`
+Per-run log. Every screenshot attempt is logged with result. Auto-rotates to `monitor-archive.log` at 500KB.
+
+Example successful run:
+```
+2026-05-06 10:33:47 | INFO | Run started | NUC: 2/ALAND/THE-WALDEN/55
+2026-05-06 10:33:47 | INFO | Screen bounds: 1920x1080
+2026-05-06 10:33:47 | INFO | Screenshot captured
+2026-05-06 10:33:47 | INFO | Resized to: 1920x1080
+2026-05-06 10:33:47 | INFO | Encoded JPEG | Size: 236 KB | Base64: 322300 chars
+2026-05-06 10:33:47 | INFO | Posting to webhook | Payload: 314 KB
+2026-05-06 10:33:55 | INFO | Webhook response: 200 OK
+2026-05-06 10:33:55 | INFO | Run completed successfully
+```
+
+---
+
 ## Architecture
 
 ```
 GitHub (showcase-msga/showcase)
-├── install.ps1          ← Master installer (no sensitive data)
-├── monitor.ps1          ← Screenshot script (placeholders only)
-├── run-silent.vbs       ← Silent launcher (InteractiveToken compatible)
-├── test-screenshot.bat  ← Manual test trigger (5s delay, auto-close)
-└── reset.bat            ← Full uninstall / reset
+├── NucMonitor.exe       ← Compiled binary (AMSI-safe, does all the work)
+├── monitor.ps1          ← Thin wrapper (placeholders only)
+├── run-silent.vbs       ← Silent launcher (reads txt files, calls exe)
+├── update.ps1           ← Nightly auto-updater
+├── install.ps1          ← One-time installer
+├── test-screenshot.bat  ← Manual test trigger
+├── uninstall.bat        ← Full removal
+└── version.txt          ← Current version string
 
 Each NUC (C:\ProgramData\showcase-monitor\)
-├── monitor.ps1          ← Webhook URL + NUC name baked in
+├── NucMonitor.exe       ← Downloaded and updated automatically
+├── monitor.ps1          ← Webhook URL + NUC ID baked in
 ├── run-silent.vbs
+├── update.ps1
 ├── test-screenshot.bat
-├── reset.bat
-└── nuc-id.txt           ← Unique NUC name
+├── uninstall.bat
+├── webhook.txt          ← Webhook URL (read by run-silent.vbs)
+├── nuc-id.txt           ← NUC name (read by run-silent.vbs)
+├── monitor.log          ← Per-run log (auto-rotates at 500KB)
+├── update.log           ← Nightly update log
+└── version.txt          ← Installed version
 
 Google Apps Script (Web App — public access)
-└── Receives POST from NUCs
+└── Receives POST from NucMonitor.exe
 └── Decodes base64 screenshot
 └── Deletes screenshots >7 days old for same NUC
 └── Saves new screenshot to Google Drive
@@ -212,64 +218,83 @@ The webhook URL stays the same. NUCs do not need updating when the Apps Script i
 | Admin PowerShell on the NUC | Right-click > Run as Administrator |
 | NUC install commands file | `nuc-install-commands.md` |
 | Internet connection on NUC | Required to pull files from GitHub |
+| .NET Framework 4 | Pre-installed on Windows 7+, all NUCs have it |
 
 ### Steps
 
-**1. Open Admin PowerShell on the NUC**
+1. Open Admin PowerShell on the NUC (Windows Search > PowerShell > Right-click > Run as Administrator)
+2. Find the install command in `nuc-install-commands.md` (Ctrl+F for the NUC name)
+3. Copy and paste the full command block into PowerShell
+4. Press Enter and wait for: `Showcase NUC Monitor installed successfully`
+5. Run a test screenshot to verify (see Testing section)
 
-Windows Search > PowerShell > Right-click > Run as Administrator
+### Install Command Template
 
-**2. Find the install command**
-
-Open `nuc-install-commands.md`, search (Ctrl+F) for the NUC name, copy the command block below it.
-
-**3. Paste and run**
-
-Right-click in PowerShell to paste, press Enter, wait ~30 seconds.
-
-**4. Confirm success**
-
+```powershell
+$webhook = "https://script.google.com/macros/s/SCRIPT_ID/exec"
+$nucId   = "STATE/CLIENT/PROJECT/SCREEN"
+iex (iwr "https://raw.githubusercontent.com/showcase-msga/showcase/main/install.ps1" -UseBasicParsing).Content
 ```
-Showcase NUC Monitor installed successfully.
-NUC ID: [NUC NAME]
-Folder: C:\ProgramData\showcase-monitor
-```
-
-**5. Test**
-
-Double-click `test-screenshot.bat` from the **Showcase Monitor** desktop shortcut, wait 60 seconds, check Google Drive for the screenshot.
-
-**6. Verify scheduled task**
-
-`Win + R` > `taskschd.msc` > Confirm **Showcase NUC Monitor** exists with status **Ready**
 
 ---
 
-## Deployment
+## Testing
 
-### Install Command Format
+### Manual exe test (quickest)
 
 ```powershell
-powershell -ExecutionPolicy Bypass -Command "& {`$nucId='NUC/NAME/HERE'; `$webhook='WEBHOOK_URL'; Invoke-Expression (Invoke-WebRequest 'GITHUB_RAW_URL/install.ps1' -UseBasicParsing).Content}"
+& "C:\ProgramData\showcase-monitor\NucMonitor.exe" `
+  "https://script.google.com/macros/s/SCRIPT_ID/exec" `
+  "NUC-ID-HERE"
 ```
 
-> Webhook URL and GitHub URL intentionally omitted. Refer to `nuc-install-commands.md` for full commands.
+### Via VBS chain (same as scheduled task)
 
-### Files Deployed to Each NUC
+```powershell
+cscript "C:\ProgramData\showcase-monitor\run-silent.vbs"
+```
 
-| File | Location | Purpose |
-|------|----------|---------|
-| `monitor.ps1` | `C:\ProgramData\showcase-monitor\` | Core screenshot script |
-| `run-silent.vbs` | `C:\ProgramData\showcase-monitor\` | Silent launcher |
-| `test-screenshot.bat` | `C:\ProgramData\showcase-monitor\` | Manual test trigger |
-| `reset.bat` | `C:\ProgramData\showcase-monitor\` | Full uninstall / reset |
-| `nuc-id.txt` | `C:\ProgramData\showcase-monitor\` | NUC identity file |
+### Simulate scheduled task trigger
+
+```powershell
+Start-ScheduledTask -TaskName "Showcase NUC Monitor"
+```
+
+### Check the log
+
+```powershell
+Get-Content "C:\ProgramData\showcase-monitor\monitor.log" -Tail 20
+```
+
+---
+
+## Auto-Update System
+
+Every NUC runs `update.ps1` daily at 2am as SYSTEM. It checks `version.txt` on GitHub and downloads all updated files if the version has changed.
+
+### Deploying an update to the fleet
+
+1. Push all updated files to GitHub
+2. Push `version.txt` with the new version number **last**
+3. Fleet picks up the update at 2am
+
+> ⚠️ Always push `version.txt` last. Pushing it first causes NUCs to try downloading files before they exist.
+
+### Check update log
+
+```powershell
+Get-Content "C:\ProgramData\showcase-monitor\update.log" -Tail 10
+```
+
+### Force update on a single NUC
+
+```powershell
+& "C:\ProgramData\showcase-monitor\update.ps1"
+```
 
 ---
 
 ## Adding New NUCs
-
-No files need to be updated. Use the install command template with the new NUC name.
 
 ### NUC Naming Convention
 
@@ -287,51 +312,33 @@ STATE_PREFIX/CLIENT/PROJECT/SCREEN-TYPE
 
 ### Steps
 
-1. Confirm the NUC name following the naming convention
-2. Use the install command template from `nuc-install-commands.md`
-3. Replace `NUC/NAME/HERE` with the new NUC name
-4. Run on the NUC following the installation steps above
-5. Add the new NUC name to `nuc-install-commands.md` for future reference
-
-> ⚠️ Use the exact NUC name including slashes, spaces and brackets.
+1. Confirm NUC name following the naming convention
+2. Use the install command template with the new NUC name
+3. Run on the NUC following the installation steps above
+4. Add the NUC name and command to `nuc-install-commands.md` for future reference
 
 ---
 
 ## Resetting a NUC
 
-Use `reset.bat` to completely remove all monitor configurations and start fresh. Useful when a NUC has the wrong name, a broken install, or needs a script update.
-
-### Using reset.bat (Recommended)
+### Using uninstall.bat (recommended)
 
 1. Open the **Showcase Monitor** folder from the desktop shortcut
-2. Right-click `reset.bat` and select **Run as administrator**
+2. Right-click `uninstall.bat` and select **Run as administrator**
 3. Wait for the completion message
-4. Re-run the correct install command from `nuc-install-commands.md`
+4. Re-run the correct install command
 
-### Manual Reset via PowerShell
+### Manual reset via PowerShell
 
 ```powershell
 Unregister-ScheduledTask -TaskName "Showcase NUC Monitor" -Confirm:$false
+Unregister-ScheduledTask -TaskName "Showcase NUC Monitor Updater" -Confirm:$false
 Remove-Item "C:\ProgramData\showcase-monitor" -Recurse -Force
 Remove-Item ([System.Environment]::GetFolderPath('CommonDesktopDirectory') + '\Showcase Monitor.lnk') -Force
 Remove-MpPreference -ExclusionPath "C:\ProgramData\showcase-monitor"
 ```
 
 Then re-run the install command.
-
----
-
-## Updating Files
-
-### Updating Scripts on GitHub
-
-1. Edit the file locally
-2. Upload to GitHub (Add file > Upload files > Commit changes)
-3. All future installs automatically use the updated version
-
-### Pushing Updates to Already-Installed NUCs
-
-Re-run the install command on each NUC. It overwrites all files with the latest from GitHub and recreates the scheduled task. There is no bulk update mechanism — each NUC must be updated individually via remote access.
 
 ---
 
@@ -347,143 +354,100 @@ NUC-NAME - YYYY-MM-DD HH-MM.jpg
 
 Examples:
 ```
-2-ALAND-THE-WALDEN-55 - 2026-04-15 08-30.jpg
-3-GOLDFIELDS-BRIGHTLY-MODEL (HEADLESS) - 2026-04-15 09-30.jpg
-4-SHERPA-SYMPHONY-68 - 2026-04-15 14-30.jpg
+2-ALAND-THE-WALDEN-55 - 2026-05-06 08-30.jpg
+3-GOLDFIELDS-BRIGHTLY-MODEL - 2026-05-06 09-00.jpg
 ```
 
 ### Retention
 
 - Screenshots older than **7 days** per NUC deleted automatically on each new upload
 - Handled by Google Apps Script, not the NUC
-- Approximately **9 screenshots per NUC per day**
 
 ### Daily Check Workflow
 
 1. Open **[03] NUC Dashboard** in Google Drive
 2. Sort by **Date Modified** (newest first)
-3. Scan thumbnails for issues (popup, black screen, wrong content)
+3. Scan thumbnails for issues (black screen, wrong content, popup)
 4. Remote into any NUC that needs attention
 
 ---
 
 ## Troubleshooting
 
-### Screenshots are all black
+### No screenshot in dashboard
 
-**Cause:** Scheduled task was running as SYSTEM with no desktop session
-
-**Fix:** Re-run the install command to get the updated `install.ps1` which uses `InteractiveToken`. The task now runs in the logged-in user's session.
-
----
-
-### Script blocked by antivirus
-
-**Symptom:** `ScriptContainsMaliciousContent` error
-
-**Fix:**
+**Step 1:** Check the log
 ```powershell
-Add-MpPreference -ExclusionPath "C:\ProgramData\showcase-monitor"
+Get-Content "C:\ProgramData\showcase-monitor\monitor.log" -Tail 20
 ```
-Then re-run the install command.
+The log tells you exactly which step failed.
 
----
-
-### Screenshot shows partial screen
-
-**Cause:** DPI scaling mismatch on older install
-
-**Fix:** Re-run the install command to pull the latest `monitor.ps1` with DPI-aware capture.
-
----
-
-### No screenshot in Drive after test
-
-**Check 1:** Internet connection
+**Step 2:** Check internet
 ```powershell
 Test-NetConnection google.com -Port 443
 ```
 
-**Check 2:** Run script directly
-```powershell
-powershell -ExecutionPolicy Bypass -NoProfile -File "C:\ProgramData\showcase-monitor\monitor.ps1"
-```
-
-**Check 3:** Check Apps Script Executions log at script.google.com
-
----
-
-### Wrong NUC name in filename
-
-**Fix:** Run `reset.bat` as Admin then re-run the correct install command.
+**Step 3:** Check Apps Script executions log at script.google.com
 
 ---
 
 ### Scheduled task not running
 
-**Fix:** Open `taskschd.msc`, verify **Showcase NUC Monitor** exists with status **Ready**. If missing, re-run the install command.
+Open `taskschd.msc`, verify **Showcase NUC Monitor** exists with status **Ready**. If missing, re-run the install command. Confirm the task runs as `InteractiveToken` — SYSTEM context produces black screenshots.
+
+---
+
+### Wrong NUC name
+
+Run `uninstall.bat` as Admin then re-run the correct install command.
 
 ---
 
 ### 401 Unauthorized
 
-**Fix:** Ensure webhook URL uses:
+Ensure webhook URL uses the public format:
 ```
 https://script.google.com/macros/s/SCRIPT_ID/exec
 ```
-Run `reset.bat` and reinstall with the correct URL.
+
+---
+
+### Update not applying
+
+Check `update.log`. Common causes: no internet at 2am, `version.txt` not pushed, or `webhook.txt`/`nuc-id.txt` missing from the NUC.
 
 ---
 
 ## Changelog
 
+### v1.9 — May 2026
+- Replaced PowerShell screenshot logic with compiled `NucMonitor.exe` (.NET 4, AMSI-safe)
+- `run-silent.vbs` now reads `webhook.txt` and `nuc-id.txt` and calls `NucMonitor.exe` directly (no PowerShell in hot path)
+- Webhook URL and NUC ID stored in `webhook.txt` and `nuc-id.txt`
+- Full per-run logging in `monitor.log` — every step logged including screen bounds, JPEG size, webhook response code
+- Log auto-rotates at 500KB to `monitor-archive.log`
+- `update.ps1` now downloads `NucMonitor.exe` as part of fleet updates
+
 ### v1.6 — April 2026
-- Replaced the broken `Set-ScheduledTask` reconciliation block in `update.ps1` with a full task re-registration via XML
-- The screenshot task is now unregistered and re-registered with `<RandomDelay>PT10M</RandomDelay>` baked into the XML on every nightly run, only if the delay isn't already PT10M
-- Added explicit `-ErrorAction Stop` and post-registration verification so silent failures stop being invisible
-- Fleet-wide self-healing: any NUC where v1.5's reconciliation silently failed will now correctly apply the random delay at the next 2am SYSTEM-context update
-- `update.ps1` now self-refreshes when a version mismatch is detected, so future bug fixes to the updater itself can deploy via auto-update without requiring a manual reinstall
-- **One-time bootstrap added to `monitor.ps1`** to work around the v1.5 architectural hole: v1.5 update.ps1 doesn't download a new update.ps1, so v1.6's update.ps1 changes can't deploy via the normal path. The bootstrap fires once from monitor.ps1 (which IS auto-deployed via v1.5), downloads v1.6 update.ps1 directly from GitHub, then drops a marker file (`v16-bootstrap-done.txt`) to prevent re-runs. Safe to remove in v1.7+ once fleet is confirmed on v1.6.
+- Replaced broken `Set-ScheduledTask` reconciliation with full XML task re-registration
+- `update.ps1` self-refreshes on version mismatch
+- One-time bootstrap in `monitor.ps1` to deploy v1.6 `update.ps1` to fleet
 
 ### v1.5 — April 2026
-- Added 10-minute random delay to screenshot scheduled task to spread fleet uploads and eliminate Apps Script concurrency rejections during peak bursts
-- `monitor.ps1` now prepends a black header bar to every screenshot showing NUC ID, timestamp, and the list of visible windows
-- `install.ps1` task XML updated with `<RandomDelay>PT10M</RandomDelay>` for new installs
-- Apps Script simplified: Archive folder logic removed, Dashboard folder is now the single source of truth (latest screenshot per NUC)
-- Documentation updated to reflect 30-minute cadence
+- Added 10-minute random delay to spread fleet uploads
+- Screenshot cadence changed to every 30 minutes (was hourly)
 
 ### v1.4 — April 2026
-- Added `update.ps1` — silent auto-updater runs daily at 2am
-- Version check via `version.txt` on GitHub, updates only if version differs
-- Webhook URL and NUC ID preserved automatically during updates
-- All update activity logged to `update.log` with timestamp and version
-- Renamed `reset.bat` to `uninstall.bat`
-- `uninstall.bat` now also removes the updater scheduled task
-- `install.ps1` now registers two scheduled tasks: screenshot and updater
-- `version.txt` written to NUC folder at install time
+- Added `update.ps1` auto-updater (daily at 2am)
+- Version check via `version.txt` on GitHub
+- Webhook URL and NUC ID preserved during updates
 
 ### v1.3 — April 2026
-- Fixed black screenshot issue by changing scheduled task from SYSTEM to InteractiveToken
-- Task now runs in the logged-in user's desktop session, capturing the actual visible screen
-- Removed `-NonInteractive` flag from `run-silent.vbs` to allow desktop session access
-- Added `reset.bat` to the list of files downloaded by `install.ps1`
+- Fixed black screenshot by switching scheduled task to `InteractiveToken`
 
 ### v1.2 — April 2026
-- Fixed screenshot capture using DPI-aware `GetDeviceCaps` method
-- Now correctly captures full screen on all display types (LED, projector, TV, touchscreen)
-- Added `reset.bat` for full uninstall and clean reinstall
-- `test-screenshot.bat` now closes immediately and waits 5 seconds before firing
+- DPI-aware screenshot capture
+- Added `uninstall.bat`
 
-### v1.1 — April 2026
-- Added `test-screenshot.bat` for manual screenshot testing
-- Fixed `test-screenshot.bat` to run silently with no visible window
-
-### v1.0 — April 2026
+### v1.0-1.1 — April 2026
 - Initial release
-- Silent screenshot capture every hour 8:30am–5:00pm
-- Google Drive upload via Apps Script webhook
-- 7 day rolling retention per NUC
-- Single command deployment from GitHub
-- Windows Defender exclusion added automatically
-- Desktop shortcut created on install
-- 251 NUCs supported across NSW, VIC, QLD
