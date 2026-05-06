@@ -1,11 +1,9 @@
 # ============================================================
-# Showcase NUC Monitor - update.ps1 (v1.7)
-# Runs daily at 2am via scheduled task
-# v1.6: Replaced broken Set-ScheduledTask reconciliation with
-#       full task re-registration via XML. Guarantees the
-#       random delay is applied on every NUC, fleet-wide.
-# v1.7: Adds Defender exclusion for monitor dir fleet-wide.
-#       Fixes AMSI blocking monitor.ps1 on manually triggered runs.
+# Showcase NUC Monitor - update.ps1 (v1.9)
+# Runs daily at 2am via scheduled task (SYSTEM context)
+# v1.9: Downloads NucMonitor.exe alongside scripts.
+#       monitor.ps1 is now a thin wrapper - exe handles all work.
+#       Preserves webhook URL and NUC ID across updates.
 # ============================================================
 
 $ErrorActionPreference = "SilentlyContinue"
@@ -21,22 +19,14 @@ function Write-Log($message) {
     Add-Content -Path $logFile -Value $entry -ErrorAction SilentlyContinue
 }
 
-# ---- v1.7: Ensure Defender exclusion is present fleet-wide ----
-# Fixes AMSI blocking monitor.ps1 when run manually or on machines
-# where install.ps1 did not apply the exclusion.
-try {
-    $existingExclusions = (Get-MpPreference).ExclusionPath
-    if ($existingExclusions -notcontains $monitorDir) {
-        Add-MpPreference -ExclusionPath $monitorDir -ErrorAction Stop
-        Write-Log "Defender exclusion added for $monitorDir"
-    }
-} catch {
-    Write-Log "Failed to add Defender exclusion: $($_.Exception.Message)"
+# ---- Ensure Defender exclusion is present ----
+$existingExclusions = (Get-MpPreference -ErrorAction SilentlyContinue).ExclusionPath
+if ($existingExclusions -notcontains $monitorDir) {
+    Add-MpPreference -ExclusionPath $monitorDir -ErrorAction SilentlyContinue
+    Write-Log "Defender exclusion added for $monitorDir"
 }
 
-# ---- v1.6: Re-register screenshot task with random delay baked in ----
-# Idempotent: only re-registers if the delay isn't already PT10M.
-# Uses the same XML pattern as install.ps1, guaranteed to apply.
+# ---- Re-register screenshot task if random delay missing ----
 $taskName = "Showcase NUC Monitor"
 $vbsPath  = "$monitorDir\run-silent.vbs"
 
@@ -84,18 +74,9 @@ try {
   </Actions>
 </Task>
 "@
-
         Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction Stop
         Register-ScheduledTask -TaskName $taskName -Xml $screenshotXml -Force -ErrorAction Stop | Out-Null
-
-        # Verify the delay actually applied
-        $verifyTask = Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
-        $verifyDelay = $verifyTask.Triggers[0].RandomDelay
-        if ($verifyDelay -eq "PT10M") {
-            Write-Log "Re-registered screenshot task with RandomDelay PT10M (was: '$currentDelay')"
-        } else {
-            Write-Log "WARNING: Re-registered task but verification shows RandomDelay = '$verifyDelay' (expected PT10M)"
-        }
+        Write-Log "Re-registered screenshot task with RandomDelay PT10M (was: '$currentDelay')"
     }
 } catch {
     Write-Log "Failed to reconcile screenshot task: $($_.Exception.Message)"
@@ -150,6 +131,10 @@ try {
     $monitorScript = $monitorScript -replace 'NUCID_PLACEHOLDER', $nucId
     [System.IO.File]::WriteAllText("$monitorDir\monitor.ps1", $monitorScript)
 
+    # NucMonitor.exe - the compiled binary that does all the actual work
+    $exeBytes = (Invoke-WebRequest "$baseUrl/NucMonitor.exe" -UseBasicParsing).Content
+    [System.IO.File]::WriteAllBytes("$monitorDir\NucMonitor.exe", $exeBytes)
+
     # run-silent.vbs
     $vbsContent = (Invoke-WebRequest "$baseUrl/run-silent.vbs" -UseBasicParsing).Content
     [System.IO.File]::WriteAllText("$monitorDir\run-silent.vbs", $vbsContent)
@@ -162,7 +147,7 @@ try {
     $uninstallContent = (Invoke-WebRequest "$baseUrl/uninstall.bat" -UseBasicParsing).Content
     [System.IO.File]::WriteAllText("$monitorDir\uninstall.bat", $uninstallContent)
 
-    # v1.6: update.ps1 - self-refresh so future updates to the updater itself can deploy
+    # update.ps1 - self-refresh
     $updateScriptContent = (Invoke-WebRequest "$baseUrl/update.ps1" -UseBasicParsing).Content
     [System.IO.File]::WriteAllText("$monitorDir\update.ps1", $updateScriptContent)
 

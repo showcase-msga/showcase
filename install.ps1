@@ -1,9 +1,9 @@
 # ============================================================
-# Showcase NUC Monitor - install.ps1 (v1.5)
+# Showcase NUC Monitor - install.ps1 (v1.9)
 # Called remotely, variables injected via command line
 # Usage: $nucId and $webhook must be set before calling this
-# v1.5: 10-minute random delay on screenshot trigger to prevent
-#       Apps Script concurrency saturation across the fleet
+# v1.9: Downloads NucMonitor.exe (compiled binary, AMSI-safe).
+#       monitor.ps1 is now a thin wrapper calling the exe.
 # ============================================================
 
 $monitorDir  = "C:\ProgramData\showcase-monitor"
@@ -18,36 +18,36 @@ if (-not (Test-Path $monitorDir)) {
     New-Item -ItemType Directory -Path $monitorDir -Force | Out-Null
 }
 
-# ---- Step 3: Download monitor.ps1 and inject webhook URL ----
+# ---- Step 3: Download monitor.ps1 and inject webhook URL + NUC ID ----
 $monitorScript = (Invoke-WebRequest "$baseUrl/monitor.ps1" -UseBasicParsing).Content
 $monitorScript = $monitorScript -replace 'WEBHOOK_URL_PLACEHOLDER', $webhook
 $monitorScript = $monitorScript -replace 'NUCID_PLACEHOLDER', $nucId
 [System.IO.File]::WriteAllText("$monitorDir\monitor.ps1", $monitorScript)
 
-# ---- Step 4: Download run-silent.vbs ----
+# ---- Step 4: Download NucMonitor.exe ----
+$exeBytes = (Invoke-WebRequest "$baseUrl/NucMonitor.exe" -UseBasicParsing).Content
+[System.IO.File]::WriteAllBytes("$monitorDir\NucMonitor.exe", $exeBytes)
+
+# ---- Step 5: Download supporting scripts ----
 $vbsContent = (Invoke-WebRequest "$baseUrl/run-silent.vbs" -UseBasicParsing).Content
 [System.IO.File]::WriteAllText("$monitorDir\run-silent.vbs", $vbsContent)
 
-# ---- Step 4b: Download test-screenshot.bat ----
 $batContent = (Invoke-WebRequest "$baseUrl/test-screenshot.bat" -UseBasicParsing).Content
 [System.IO.File]::WriteAllText("$monitorDir\test-screenshot.bat", $batContent)
 
-# ---- Step 4c: Download uninstall.bat ----
 $uninstallContent = (Invoke-WebRequest "$baseUrl/uninstall.bat" -UseBasicParsing).Content
 [System.IO.File]::WriteAllText("$monitorDir\uninstall.bat", $uninstallContent)
 
-# ---- Step 4d: Download update.ps1 ----
 $updateContent = (Invoke-WebRequest "$baseUrl/update.ps1" -UseBasicParsing).Content
 [System.IO.File]::WriteAllText("$monitorDir\update.ps1", $updateContent)
 
-# ---- Step 5: Write nuc-id.txt ----
-[System.IO.File]::WriteAllText("$monitorDir\nuc-id.txt", $nucId)
-
-# ---- Step 5b: Write version.txt ----
+# ---- Step 6: Write nuc-id.txt, webhook.txt and version.txt ----
+[System.IO.File]::WriteAllText("$monitorDir\nuc-id.txt",  $nucId)
+[System.IO.File]::WriteAllText("$monitorDir\webhook.txt", $webhook)
 $currentVersion = (Invoke-WebRequest "$baseUrl/version.txt" -UseBasicParsing).Content.Trim()
 [System.IO.File]::WriteAllText("$monitorDir\version.txt", $currentVersion)
 
-# ---- Step 6: Create desktop shortcut ----
+# ---- Step 7: Create desktop shortcut ----
 $desktopPath  = [System.Environment]::GetFolderPath("CommonDesktopDirectory")
 $shortcutPath = "$desktopPath\Showcase Monitor.lnk"
 $wshell       = New-Object -ComObject WScript.Shell
@@ -56,12 +56,11 @@ $shortcut.TargetPath  = $monitorDir
 $shortcut.Description = "Showcase NUC Monitor Scripts"
 $shortcut.Save()
 
-# ---- Step 7: Create scheduled task via XML ----
-# v1.5: Added <RandomDelay>PT10M</RandomDelay> to spread fleet load
+# ---- Step 8: Register screenshot scheduled task ----
 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
 
 $vbsPath = "$monitorDir\run-silent.vbs"
-$xml = @"
+$screenshotXml = @"
 <?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <Triggers>
@@ -100,10 +99,9 @@ $xml = @"
   </Actions>
 </Task>
 "@
+Register-ScheduledTask -TaskName $taskName -Xml $screenshotXml -Force | Out-Null
 
-Register-ScheduledTask -TaskName $taskName -Xml $xml -Force | Out-Null
-
-# ---- Step 8: Register auto-updater scheduled task ----
+# ---- Step 9: Register auto-updater scheduled task ----
 $updateTaskName = "Showcase NUC Monitor Updater"
 Unregister-ScheduledTask -TaskName $updateTaskName -Confirm:$false -ErrorAction SilentlyContinue
 
@@ -140,10 +138,9 @@ $updateXml = @"
   </Actions>
 </Task>
 "@
-
 Register-ScheduledTask -TaskName $updateTaskName -Xml $updateXml -Force | Out-Null
 
-# ---- Step 9: Add Defender exclusion ----
+# ---- Step 10: Add Defender exclusion ----
 Add-MpPreference -ExclusionPath $monitorDir -ErrorAction SilentlyContinue
 
 Write-Host "Showcase NUC Monitor installed successfully." -ForegroundColor Green
