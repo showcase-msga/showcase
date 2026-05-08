@@ -944,6 +944,7 @@
           <span class="switch" aria-hidden="true"></span>
           <span>Notify mode</span>
         </button>
+        <button class="btn-secondary" id="copyOfflineBtn" onclick="copyOfflineReport()" title="Copy list of offline, non-excluded NUCs">Copy Offline</button>
         <div class="stat-group">
           <div class="stat">
             <div class="stat-dot green"></div>
@@ -1779,6 +1780,103 @@ document.addEventListener('input', e => {
     renderNucsTab();
   }
 });
+
+// =============== COPY OFFLINE REPORT ===============
+function parseClientProjectFromCleanName(clean) {
+  // clean is in the form: "Client / Project / Display Name" (via cleanName)
+  const parts = String(clean).split(' / ');
+  if (parts.length >= 2) return parts[0] + ' / ' + parts[1];
+  return '';
+}
+
+async function copyOfflineReport() {
+  const btn = document.getElementById('copyOfflineBtn');
+
+  // Collect offline, non-excluded items as cleaned names
+  const cleaned = allFiles
+    .filter(f => f.offline && !isExcluded(f))
+    .map(f => cleanName(f.name));
+
+  // Group by project (client + project). If a project has >1 displays, collapse to one line with (suite)
+  const projectCounts = new Map();        // key: "Client / Project" → count
+  const projectToSingleFull = new Map();  // for projects that end up with exactly 1 item: store its full name
+  const noProjectNames = new Set();       // items we couldn't parse into client/project
+
+  for (const cn of cleaned) {
+    const key = parseClientProjectFromCleanName(cn);
+    if (key) {
+      const prev = projectCounts.get(key) || 0;
+      projectCounts.set(key, prev + 1);
+      if (prev === 0) {
+        // tentatively remember the full display name for the first occurrence
+        projectToSingleFull.set(key, cn);
+      } else if (prev === 1) {
+        // now we know this project has at least 2; we will output as a suite, so drop the stored single
+        projectToSingleFull.delete(key);
+      }
+    } else {
+      noProjectNames.add(cn);
+    }
+  }
+
+  const lines = [];
+
+  // Projects: add either suite line or the original single full line
+  for (const [key, count] of projectCounts) {
+    if (count > 1) {
+      lines.push(`${key} (suite)`);
+    } else {
+      const full = projectToSingleFull.get(key) || key; // fallback to key just in case
+      lines.push(full);
+    }
+  }
+
+  // Add items with no parsable project as-is
+  for (const name of noProjectNames) lines.push(name);
+
+  // Sort for stable output
+  lines.sort((a, b) => a.localeCompare(b, 'en-AU', { sensitivity: 'base' }));
+
+  const text = `Showcase Health Check\nOffline NUCS:${lines.length ? '\n' + lines.join('\n') : ''}`;
+
+  const okToast = () => {
+    const n = lines.length;
+    const plural = n === 1 ? '' : 's';
+    showToast('success', 'Copied', `${n} line${plural} copied to clipboard`);
+  };
+
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      okToast();
+    } else {
+      throw new Error('Clipboard API not available');
+    }
+  } catch (e) {
+    // Fallback using a temporary textarea
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const succeeded = document.execCommand && document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (succeeded) okToast(); else throw new Error('execCommand failed');
+    } catch (err) {
+      showToast('error', 'Copy failed', 'Could not access clipboard. The text will be shown in an alert to copy manually.');
+      alert(text);
+    }
+  }
+
+  if (btn) {
+    const original = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = original; }, 1200);
+  }
+}
 
 // =============== INIT ===============
 setInterval(loadScreenshots, 5 * 60 * 1000);
