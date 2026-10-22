@@ -420,6 +420,21 @@ Check `update.log`. Common causes: no internet at 2am, `version.txt` not pushed,
 
 ## Changelog
 
+### v2.0-beta — October 2026 (beta branch, test NUCs only)
+- `NucMonitor.exe` rebuilt from source, now in the repo: `src/NucMonitor.cs`, built with `src/build.bat` (the .NET Framework compiler on every Windows PC, no SDK)
+- **DPI aware:** captures every screen at its real resolution. v1.x read the scaled bounds (1920x1080 on a 4K screen at 200%) and captured only the top-left quarter
+- **Stats panel** drawn beside the screenshot: warnings first, then uptime, CPU, RAM, disk, Windows version, network, WiFi, displays, Chrome, and every open window (foreground marked)
+- Payload keeps `nuc_name`, `timestamp`, `screenshot`; adds `version` and `stats` (JSON), so the existing Apps Script is unchanged
+- If the screen can't be captured (locked, no desktop), the panel is still uploaded with the reason
+- `NucMonitor.exe --dry-run <out.jpg> <nucId>` captures and saves locally without uploading
+- **Channels:** `install.ps1` takes an optional `$channel` (default `main`) and writes `channel.txt`; `update.ps1` updates from that branch. Test NUCs run `beta`; everything else stays on `main`
+
+Switch a NUC to beta (Admin PowerShell, keeps its ID and webhook):
+```powershell
+$channel='beta'; $nucId=(Get-Content 'C:\ProgramData\showcase-monitor\nuc-id.txt' -Raw).Trim(); $webhook=(Get-Content 'C:\ProgramData\showcase-monitor\webhook.txt' -Raw).Trim(); Invoke-Expression (Invoke-WebRequest 'https://raw.githubusercontent.com/showcase-msga/showcase/beta/install.ps1' -UseBasicParsing).Content
+```
+Back to main: the same line with `$channel='main'` and `/main/` in the URL.
+
 ### v1.9 — May 2026
 - Replaced PowerShell screenshot logic with compiled `NucMonitor.exe` (.NET 4, AMSI-safe)
 - `run-silent.vbs` now reads `webhook.txt` and `nuc-id.txt` and calls `NucMonitor.exe` directly (no PowerShell in hot path)

@@ -1,5 +1,5 @@
 # ============================================================
-# Showcase NUC Monitor - install.ps1 (v1.9)
+# Showcase NUC Monitor - install.ps1 (v2.0-beta)
 # Called remotely, variables injected via command line
 # Usage: $nucId and $webhook must be set before calling this
 # v1.9: Downloads NucMonitor.exe (compiled binary, AMSI-safe).
@@ -8,7 +8,9 @@
 
 $monitorDir  = "C:\ProgramData\showcase-monitor"
 $taskName    = "Showcase NUC Monitor"
-$baseUrl     = "https://raw.githubusercontent.com/showcase-msga/showcase/main"
+# v2.0: optional $channel ("beta" for test NUCs). Defaults to main, so the existing install command is unchanged.
+if (-not $channel) { $channel = "main" }
+$baseUrl     = "https://raw.githubusercontent.com/showcase-msga/showcase/$channel"
 
 # ---- Step 1: Set execution policy ----
 Set-ExecutionPolicy Bypass -Scope LocalMachine -Force
@@ -46,6 +48,7 @@ $updateContent = (Invoke-WebRequest "$baseUrl/update.ps1" -UseBasicParsing).Cont
 [System.IO.File]::WriteAllText("$monitorDir\webhook.txt", $webhook)
 $currentVersion = (Invoke-WebRequest "$baseUrl/version.txt" -UseBasicParsing).Content.Trim()
 [System.IO.File]::WriteAllText("$monitorDir\version.txt", $currentVersion)
+[System.IO.File]::WriteAllText("$monitorDir\channel.txt", $channel)
 
 # ---- Step 7: Create desktop shortcut ----
 $desktopPath  = [System.Environment]::GetFolderPath("CommonDesktopDirectory")
