@@ -1,5 +1,5 @@
 # ============================================================
-# Showcase NUC Monitor - update.ps1 (v1.10)
+# Showcase NUC Monitor - update.ps1 (v2.0-beta)
 # Runs daily at 2am via scheduled task (SYSTEM context)
 #
 # v1.10 changes:
@@ -20,8 +20,15 @@ $ErrorActionPreference = "SilentlyContinue"
 $monitorDir  = "C:\ProgramData\showcase-monitor"
 $logFile     = "$monitorDir\update.log"
 $versionFile = "$monitorDir\version.txt"
-$baseUrl     = "https://raw.githubusercontent.com/showcase-msga/showcase/main"
 $timestamp   = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+
+# v2.0: test NUCs carry channel.txt = "beta" and update from the beta branch; everything else stays on main.
+$channel = "main"
+if (Test-Path "$monitorDir\channel.txt") {
+    $c = (Get-Content "$monitorDir\channel.txt" -Raw -ErrorAction SilentlyContinue).Trim()
+    if ($c) { $channel = $c }
+}
+$baseUrl     = "https://raw.githubusercontent.com/showcase-msga/showcase/$channel"
 
 # Files that must exist on every NUC for the monitor to function.
 # If any are missing, force a full re-download even if versions match.
